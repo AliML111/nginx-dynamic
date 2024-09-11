@@ -1,0 +1,27 @@
+services:
+  #nginx:
+  #  image: nginx:stable
+  #  container_name: nginx
+  #  ports:
+  #    - 8080:80
+  #  volumes:
+  #    - "./njs:/etc/nginx/njs"
+  #    # - "./nginx.conf:/etc/nginx/nginx.conf"
+  #    #- "./default.conf:/etc/nginx/conf.d/default.conf"
+  #    - "./default1.conf:/etc/nginx/nginx.conf"
+  #    - "./upstreams:/etc/nginx/upstreams"
+  #    # - "./pics/:/usr/share/nginx/html/pics/"
+  nginx-1:
+    image: nginx:stable
+    container_name: nginx-1
+    ports:
+     - 8080:80
+    # network_mode: host
+    volumes:
+      - "./default2.conf:/etc/nginx/nginx.conf"
+      - "./njs:/etc/nginx/njs"
+      - "./upstreams:/etc/nginx/upstreams"
+        #- "./default-1:/etc/nginx/conf.d/default.conf"
+        #- "./pics/:/usr/share/nginx/html/pics/"
+
+    
