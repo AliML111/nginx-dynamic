@@ -2,50 +2,53 @@ const proxy = ngx.shared.proxy;
 let fs = require('fs');
 let id = 0;
 const count = ngx.shared.count;
-let roundRobinIndex;
+// let roundRobinIndex;
 let upstreamId;
 function getUpstream(req) {
     const ingress_name = req.variables['ingress_service'];
-    let check = count.get(ingress_name);
-    if (check == undefined){
+
+    // Initialize roundRobinIndex and weight counter
+    let roundRobinIndex = count.get('index') || 0;
+    let weightCounter = count.get('weight') || 0;
+
+    // Initialize upstreams for this ingress if they haven't been loaded yet
+    if (!count.get(ingress_name)) {
         readConfig(req);
         count.set(ingress_name, 1);
     }
-    countKeys(req);   // Get the number of upstreams
-    let items = proxy.items();
-    roundRobinIndex = count.get('index') || 0;
 
-    ngx.log(ngx.ERR, "backend: " + roundRobinIndex);
+    // Get the list of upstreams from the shared dictionary
+    const items = proxy.items();
+    const numUpstreams = items.length;
 
+    // Return error if no upstreams available
+    if (numUpstreams === 0) {
+        invalidBackend(req, 503);
+        return;
+    }
 
-    try {
-        // Round-robin logic: pick the next backend in a circular manner
-        if (id > 0) {
-            if (roundRobinIndex >= items.length) {
-                count.set('index', 0);
-                roundRobinIndex = count.get('index');
-                ngx.log(ngx.ERR, "reset: " + roundRobinIndex);
+    // Get the backend for the current round-robin index
+    let currentItem = JSON.parse(items[roundRobinIndex][1]);
+    let backend = currentItem.endpoint.trim();
+    let backendWeight = currentItem.weight;
 
-            }
+    // Increment the weight counter
+    weightCounter++;
 
-            let backendIndex = items[roundRobinIndex][0];
-            // ngx.log(ngx.ERR, "debug: " + backendIndex);
-            var backend = items[backendIndex][1].replace(/^\s+|\s+$/g, '');
-            ngx.log(ngx.ERR, "before: " + roundRobinIndex + ', backend: ' + backend);
-            
-            // Move to the next backend for the next request
-            count.incr('index',1);
-            ngx.log(ngx.ERR, "after: " + count.get('index'));
+    ngx.log(ngx.ERR, `Selected backend: ${backend} at index: ${roundRobinIndex}, weight counter: ${weightCounter}, backend weight: ${backendWeight}`);
 
-            return backend;
-        } else {
-            invalidBackend(req, 503);
-            throw new Error("No available upstreams to choose from");
-        }
-    } catch (e) {
-        ngx.log(ngx.ERR, "Failed at choosing backend: " + e.message);
-        req.return(500, "Failed at choosing backend");
-    }  
+    // If the weight counter equals the backend weight, reset and move to the next backend
+    if (weightCounter >= backendWeight) {
+        weightCounter = 0;  // Reset the weight counter
+        roundRobinIndex = (roundRobinIndex + 1) % numUpstreams;  // Increment the index using modulo
+    }
+
+    // Store the updated values back in the shared dictionary
+    count.set('index', roundRobinIndex);
+    count.set('weight', weightCounter);
+
+    // Return the selected backend
+    return backend;
 }
 
 function invalidBackend(req, code) {
@@ -53,198 +56,17 @@ function invalidBackend(req, code) {
     req.finish();
     return "@invalidbackend";
 }
-function listUpstreams (req) {
-    handleRequest(req);
-    let output;
-        try {
-            if (upstreamId){
-                output = {
-                  server_name: proxy.get(upstreamId),
-                }
-                req.return(200, JSON.stringify(output));
-            } else {
-                // Return the sorted keys as a response
-                req.return(200, JSON.stringify(proxy.items()));
-            } 
-
-        } catch (e) {
-            ngx.log(ngx.ERR, "Failed to list Upstreams: " + e.message);
-            output = {
-                error: "Failed to list Upstreams"
-              }
-            req.return(500, JSON.stringify(output));
-        }
-}
-function addUpstreams (req) {
-    const requestBody = req.requestBuffer;
-    countKeys(req);
-    let output;
-        if (requestBody) {
-            try {
-                // Parse the request body as JSON
-                const payloadData = JSON.parse(requestBody);
-                const key = id++;
-                const value = payloadData.server_name;
-                // const validation = validateAndResolveDomain(value);
-                if (!value) {
-                    output = {
-                        error: 'server_name field is empty'
-                    }
-                    req.return(400, JSON.stringify(output));
-                }
-                let items = proxy.items();
-                items = items.some(row => row.includes(value));
-                if ( items == false ) {
-                    proxy.set(key, value);
-
-                    if ( proxy.get(key) != undefined ) {
-                        output = {
-                            result: 'Created'
-                        }
-                        req.return(201, JSON.stringify(output));
-                    } else {
-                        ngx.log(ngx.ERR, 'Failed to add upstream with key: ' + key);
-                        output = {
-                            error: 'Key not set!'
-                        }
-                        req.return(400, JSON.stringify(output));
-                    }
-                } else {
-                    output = {
-                        error: 'This server_name already exists'
-                    }
-                    req.return(400, JSON.stringify(output));
-                }
-                // writeConfig(req);  // Save to file after deletion
-                
-            } catch (e) {
-                ngx.log(ngx.ERR, 'Error processing POST request: ' + e.message);
-                output = {
-                    error: 'Could not add upstream'
-                }
-                req.return(500, JSON.stringify(output));
-            }
-        } else {
-            output = {
-                error: 'Data not provided'
-            }
-            req.return(400, JSON.stringify(output));
-        }
-}
-
-function deleteUpstreams (req) {
-    handleRequest(req);
-    const requestBody = req.requestBuffer;
-    let givenId;
-    let output;
-        if (requestBody || upstreamId) {
-            try {
-                if (upstreamId){
-                    givenId = upstreamId;
-                } else {
-                    // Parse the request body as JSON
-                    givenId = JSON.parse(requestBody);
-                    givenId= givenId.id;
-                    
-                }
-                const key = givenId;
-                if ( proxy.get(key) != undefined ) {
-                    proxy.delete(key);
-                    if ( proxy.get(key) == undefined ) {
-                        output = {
-                            result: 'Deleted'
-                        }
-                        req.return(204, JSON.stringify(output));
-                    } else {
-                        ngx.log(ngx.ERR, 'Failed to delete upstream with key: ' + key );
-                        output = {
-                            error: 'Failed to delete upstream'
-                        }
-                        req.return(500, JSON.stringify(output));
-                    }
-                } else {
-                    output = {
-                        error: 'Such an id does not exist!'
-                    }
-                    req.return(404, JSON.stringify(output));
-                }
-                // writeConfig(req);  // Save to file after deletion
-                
-            } catch (e) {
-                ngx.log(ngx.ERR, 'Error processing DELETE request: ' + e.message);
-                output = {
-                    error: 'Invalid JSON provided'
-                }
-                req.return(400, JSON.stringify(output));
-            }
-        } else {
-            output = {
-                error: 'Invalid JSON'
-            }
-            req.return(400, JSON.stringify(output));
-        }
-}
-
-function purgeSharedDict(req) {
-    try {
-        proxy.clear();
-        readConfig(req);
-        req.return(204, 'Purged');
-
-    } catch (e) {
-        ngx.log(ngx.ERR, 'Error processing PURGE request: ' + e.message);
-        req.return(500, 'There was a problem in purging...');
-    }
-}
-
-function editUpstreams(req) {
-    handleRequest(req);
-    const requestBody = req.requestBuffer;
-    let givenId;
-        if (requestBody || upstreamId) {
-            try {
-                // Parse the request body as JSON
-                const payloadData = JSON.parse(requestBody);
-                const value = payloadData.server_name;
-                if (upstreamId){
-                    givenId = upstreamId;
-                } else {
-                    givenId = payloadData.id;
-                }
-                const key = givenId;
-                // const validation = validateAndResolveDomain(value);
-                if (!key || !value) {
-                    req.return(400, 'id or server_name field is empty');
-                }
-                let items = proxy.items();
-                items = items.some(row => row.includes(value));
-                if ( proxy.get(key) != undefined && items == false ) {
-                    proxy.set(key, value);
-
-                    if ( proxy.get(key) == value ) {
-                    
-                        req.return(204, 'Edited');
-                    } else {
-                        ngx.log(ngx.ERR, 'Failed to edit upstream with key: ' + key);
-                        req.return(400, 'Upstreams not edited!');
-                    }
-                } else {
-                    req.return(400, 'This id does not exist or server_name already exists');
-                }
-                // writeConfig(req);  // Save to file after deletion
-                
-            } catch (e) {
-                ngx.log(ngx.ERR, 'Error processing POST request: ' + e.message);
-                req.return(500, 'Could not add upstream');
-            }
-        } else {
-            req.return(400, 'Data not provided');
-        }
-}
 
 function handleRequest(req) {
     // Get the complete URI
-    const uri = req.uri;
+    let uri = req.uri;
+
+    // Check if the URI ends with a slash
+    if (!uri.endsWith('/')) {
+        // If it doesn't, add the trailing slash
+        uri += '/';
+        ngx.log(ngx.ERR, 'Added trailing slash: ' + uri);
+    }
 
     // Use regex to extract the ID from any URL that ends with /<id>/
     const match = uri.match(/\/(\d+)\/$/);
@@ -256,9 +78,251 @@ function handleRequest(req) {
 
         // Now you can handle the upstreamId (fetch from shared dictionary, etc.)
         // req.return(200, 'Upstream ID: ' + upstreamId);
+    } 
+}
+
+function responseHandling (req, resCode, resMessage, extra){
+    let output;
+    if (extra){
+        output = {
+            code: resCode,
+            message: resMessage,
+            text: extra
+        }
     } else {
-        // If no ID is found, return an error
-        req.return(400, 'Invalid URL format. No numeric ID found.');
+        output = {
+            code: resCode,
+            message: resMessage
+        }
+    }
+        
+    // } else {
+    //     output = resMessage;
+    
+    // }
+    req.return(resCode, JSON.stringify(output));
+    req.finish();
+}
+
+function listUpstreams (req) {
+    handleRequest(req);
+        try {
+            if (upstreamId){
+                if (!proxy.get(upstreamId)){
+                    responseHandling(req, 404, 'Upstream not found!');
+                    return;
+                }
+                let output = {
+                    endpoint: JSON.parse(proxy.get(upstreamId)).endpoint,
+                    weight: JSON.parse(proxy.get(upstreamId)).weight
+                }
+                responseHandling(req, 200, output);
+
+            } else {
+                // Return the sorted keys as a response
+                countKeys(req);
+                let output = [];
+                let items = proxy.items();
+                for (let i=0;i < id; i++){
+                    let item = {
+                        id: items[i][0],
+                        endpoint:  JSON.parse(items[i][1]).endpoint,
+                        weight:  JSON.parse(items[i][1]).weight
+                    };
+                    output.push(item);
+                }
+                req.return(200, JSON.stringify(output, null, 2));
+                // req.finish();
+
+            } 
+
+        } catch (e) {
+            ngx.log(ngx.ERR, 'Failed to list Upstreams: ' + e.message);
+            responseHandling(req, 500, 'Failed to list Upstreams');
+        }
+}
+function addUpstreams (req) {
+    const requestBody = req.requestBuffer;
+    countKeys(req);
+        if (requestBody) {
+            try {
+                // Parse the request body as JSON
+                const payloadData = JSON.parse(requestBody);
+                const serverId = payloadData.id;
+                let key;
+                if (serverId){
+                    key = serverId;
+                    if (proxy.get(key)){
+                        responseHandling(req, 409, 'This id already exists');
+                        return;
+                    }
+                } else {
+                    key = id++;
+                }
+
+                if ( proxy.get(key) != undefined ) {
+                    responseHandling(req, 409, 'This id already exists!');
+                    return;
+                }
+
+                const endpoint = payloadData.endpoint.trim();
+                let weight = payloadData.weight;
+                // const validation = validateAndResolveDomain(endpoint);
+                if (!endpoint) {
+                    responseHandling(req, 400, 'endpoint field is empty');
+                    return;
+                }
+                if (!weight) {
+                    weight = 1;
+                }
+
+                let items = proxy.items();
+                items = items.some(row => {
+                    let storedValue = JSON.parse(row[1]);  // Parse stored JSON string
+                    return storedValue.endpoint === endpoint;  // Compare endpoints
+                });
+
+                if ( items != false ) {
+                    responseHandling(req, 409, 'This endpoint already exists');
+                    return;
+                }
+                proxy.set(key, JSON.stringify({ "endpoint": endpoint, "weight": weight }));
+                
+                items = {
+                    id: key,
+                    endpoint:  JSON.parse(proxy.get(key)).endpoint,
+                    weight:  JSON.parse(proxy.get(key)).weight 
+                }
+                responseHandling(req, 201, 'Created' , items);
+                        
+
+                // writeConfig(req);  // Save to file after deletion
+                
+            } catch (e) {
+                ngx.log(ngx.ERR, 'Error processing POST request: ' + e.message);
+                responseHandling(req, 500, 'Could not add upstream');
+            }
+        } else {
+            responseHandling(req, 400, 'Data not provided');
+            return;
+        }
+}
+
+function deleteUpstreams (req) {
+    handleRequest(req);
+    const requestBody = req.requestBuffer;
+    let key;
+        if (requestBody || upstreamId) {
+            try {
+                if (upstreamId){
+                    key = upstreamId;
+                } else {
+                    // Parse the request body as JSON
+                    key = JSON.parse(requestBody);
+                    key= key.id;
+                    
+                }
+
+                if ( proxy.get(key) == undefined ) {
+                    responseHandling(req, 404, 'Such an id does not exist');
+                    return;
+                }
+
+                proxy.delete(key);
+                if ( proxy.get(key) == undefined ) {
+                    responseHandling(req, 204, 'Deleted');
+                } else {
+                    ngx.log(ngx.ERR, 'Failed to delete upstream with key: ' + key );
+                    responseHandling(req, 500, 'Failed to delete upstream');
+                }
+                    
+                // writeConfig(req);  // Save to file after deletion
+                
+            } catch (e) {
+                ngx.log(ngx.ERR, 'Error processing DELETE request: ' + e.message);
+                responseHandling(req, 415, 'Invalid JSON provided');
+                return;
+            }
+        } else {
+            responseHandling(req, 415, 'Invalid JSON provided');
+            return;
+        }
+}
+
+function purgeSharedDict(req) {
+    try {
+        proxy.clear();
+        readConfig(req);
+        responseHandling(req, 204, 'Purged');
+
+    } catch (e) {
+        ngx.log(ngx.ERR, 'Error processing PURGE request: ' + e.message);
+        responseHandling(req, 500, 'There was a problem in purging');
+    }
+}
+
+function editUpstreams(req) {
+    handleRequest(req);
+    const requestBody = req.requestBuffer;
+    let key;
+    
+    if (requestBody || upstreamId) {
+        try {
+            // Parse the request body as JSON
+            const payloadData = JSON.parse(requestBody);
+            const endpoint = payloadData.endpoint;
+            if (upstreamId) {
+                key = upstreamId;
+            } else {
+                key = payloadData.id;
+            }
+
+            if (!key || !endpoint) {
+                responseHandling(req, 400, 'id or endpoint field is empty');
+                return;
+            }
+
+            let weight = payloadData.weight;
+
+            if (!weight) {
+                weight = 1;
+            }
+
+            let items = proxy.items();
+            
+            // Check if the endpoint already exists
+            items = items.some(row => {
+                let storedValue = JSON.parse(row[1]);  // Parse stored JSON string
+                return storedValue.endpoint === endpoint;  // Compare endpoints
+            });
+
+            if (items) {
+                responseHandling(req, 409, 'This endpoint already exists');
+                return;
+            }
+
+            if (proxy.get(key) == undefined) {
+                responseHandling(req, 404, 'This id does not exist');
+                return;
+            }
+
+                proxy.set(key, JSON.stringify({ "endpoint": endpoint.trim(), "weight": weight }));
+
+                if (proxy.get(key) == JSON.stringify({ "endpoint": endpoint, "weight": weight })) {
+                    responseHandling(req, 204, 'Edited');
+                } else {
+                    ngx.log(ngx.ERR, 'Failed to edit upstream with key: ' + key);
+                    responseHandling(req, 500, 'Upstreams not edited!');
+                    return;
+                }
+
+        } catch (e) {
+            ngx.log(ngx.ERR, 'Error processing POST request: ' + e.message);
+            responseHandling(req, 500, 'Could not edit upstream');
+        }
+    } else {
+        responseHandling(req, 400, 'Data not provided');
+        return;
     }
 }
 
@@ -276,49 +340,51 @@ function handleUpstreamAPI(req) {
         deleteUpstreams(req);
     } else if (req.method === 'PURGE') {
         purgeSharedDict(req);
-    } else if (req.method === 'PUT') {
+    } else if (req.method === 'PATCH') {
         editUpstreams(req);
-    } else if (req.method === 'OPTIONS') {
-        handleRequest(req);
     }
     else {
-        req.return(405, 'Method Not Allowed');
+        responseHandling(req, 405, 'Method Not Allowed');
     }
 }
 
-function readConfig (req) {
+function readConfig(req) {
     const ingress_name = req.variables['ingress_service'];
     const upstreamfile = req.variables['upstreamFilePath'] + ingress_name; 
     const upstream = fs.readFileSync(upstreamfile, 'utf8');
     let endpointArr = upstream.split("\n");
- 
 
     try {
-
-        // Set elements with IDs, checking for duplicates
         for (let i = 0; i < endpointArr.length; i++) {
-            let endpoint = endpointArr[i].replace(/^\s+|\s+$/g, '');
-            if (endpoint.length != 0) {
+            let endpointLine = endpointArr[i].trim();
+            
+            if (endpointLine.length !== 0) {
+                // Check if the line contains 'weight=' and split accordingly
+                let index = endpointLine.indexOf(' weight=');
+                let endpoint;
+                let weight;
 
-                let key = i;
-                let items = proxy.items();
-                items = items.some(row => row.includes(endpoint));
-                if ( items == true ) {
-                    endpointArr.splice(i, 1);
-                    endpoint = endpointArr[i].replace(/^\s+|\s+$/g, '');
-
+                if (index !== -1) {
+                    endpoint = endpointLine.substring(0, index).trim();
+                    weight = parseInt(endpointLine.substring(index + 8).trim());  // Extract weight
+                } else {
+                    endpoint = endpointLine;  // No weight found, set default
+                    weight = 1;
                 }
-                proxy.set(key, endpoint);
-            }
 
+                // Store the backend and weight in the shared dictionary
+                let key = i;
+                proxy.set(key, JSON.stringify({ "endpoint": endpoint, "weight": weight }));
+            }
         }
 
         count.set(ingress_name, 1);
-        ngx.log(ngx.INFO, 'Upstreams loaded from file');
+        ngx.log(ngx.INFO, 'Upstreams with weights loaded from file');
     } catch (e) {
         ngx.log(ngx.ERR, `Error reading upstreams file: ${e.message}`);
     }
 }
+
 
 function writeConfig(req) {
     const ingress_name = req.variables['ingress_service'];
@@ -348,7 +414,7 @@ function writeConfig(req) {
         // }
     } catch (e) {
         ngx.log(ngx.ERR, "Failed to write to file: " + e.message);
-        req.return(500, "Failed to write to file");
+        responseHandling(req, 500, 'Failed to write to file');
     }
 }
 
@@ -358,7 +424,8 @@ function countKeys(req) {
         id = proxy.size();
 
     } catch (e) {
-        req.return(500, "Failed to count Upstreams: " + e.message);
+        ngx.log(ngx.ERR, "Failed to count Upstreams: " + e.message);
+        responseHandling(req, 500, 'Failed to count Upstreams');
     }
     
     
