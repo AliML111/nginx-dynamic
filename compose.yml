@@ -23,14 +23,36 @@ services:
       - "./upstreams:/etc/nginx/upstreams"
         #- "./default-1:/etc/nginx/conf.d/default.conf"
         #- "./pics/:/usr/share/nginx/html/pics/"
-  # nginx-1:
-  #   image: nginx:stable
-  #   container_name: nginx-1
-  
-  # nginx-2:
-  #   image: nginx:stable
-  #   container_name: nginx-2
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.5
 
-  # nginx-3:
-  #   image: nginx:stable
-  #   container_name: nginx-3    
+  nginx-1:
+    image: nginx:stable
+    container_name: nginx-1
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.2
+  
+  nginx-2:
+    image: nginx:stable
+    container_name: nginx-2
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.3
+
+  nginx-3:
+    image: nginx:stable
+    container_name: nginx-3
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.4
+
+
+networks:
+  custom_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1    

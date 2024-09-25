@@ -1,7 +1,8 @@
 const proxy = ngx.shared.proxy;
-// let id = 0;
+let id = 0;
 const count = ngx.shared.count;
-// let upstreamId;
+// let roundRobinIndex;
+let upstreamId;
 function getUpstream(req) {
     const ingress_name = req.variables['ingress_service'];
     
@@ -23,7 +24,6 @@ function getUpstream(req) {
     // Initialize roundRobinIndex and weight counter
     let roundRobinIndex = count.get('index') || 0;
     let weightCounter = count.get('weight') || 0;
-    let attempts = count.get('attempts') || 0;
 
 
     // Failsafe for loop
@@ -33,27 +33,16 @@ function getUpstream(req) {
 
     // Get the backend for the current round-robin index
     let currentItem = JSON.parse(items[roundRobinIndex][1]);
-    let backend = currentItem.endpoint;
+    let backend = currentItem.server.trim();
     let backendWeight = currentItem.weight;
     let backendState = currentItem.down;
 
-    while (backendState && attempts < numUpstreams) {
+    while (backendState == true) {
         roundRobinIndex = (roundRobinIndex + 1) % numUpstreams;
         currentItem = JSON.parse(items[roundRobinIndex][1]);
-        backend = currentItem.endpoint;
+        backend = currentItem.server.trim();
         backendWeight = currentItem.weight;
         backendState = currentItem.down;
-        attempts++;
-        count.set('attempts', attempts);
-    }
-
-    if (attempts === numUpstreams) {
-        invalidBackend(req, 503);
-        return;
-    }
-
-    if (attempts != 0){
-        count.set('attempts', 0);
     }
 
     // Increment the weight counter
@@ -84,7 +73,7 @@ function invalidBackend(req, code) {
 function handleRequest(req) {
     // Get the complete URI
     let uri = req.uri;
-    let upstreamId;
+
     // Check if the URI ends with a slash
     if (!uri.endsWith('/')) {
         // If it doesn't, add the trailing slash
@@ -103,7 +92,6 @@ function handleRequest(req) {
         // Now you can handle the upstreamId (fetch from shared dictionary, etc.)
         // req.return(200, 'Upstream ID: ' + upstreamId);
     } 
-    return upstreamId;
 }
 
 function responseHandling (req, resCode, resMessage){
@@ -119,12 +107,11 @@ function responseHandling (req, resCode, resMessage){
     req.finish();
 }
 
-function listUpstreams (req) {
+function listUpstreams (req, serverId) {
         try {
-            // if(id){
-                // upstreamId = serverId;
-            // }
-            const upstreamId = handleRequest(req);
+            if(id){
+                upstreamId = serverId;
+            }
             if (upstreamId){
                 if (!proxy.get(upstreamId)){
                     responseHandling(req, 404, 'Upstream not found!');
@@ -135,7 +122,7 @@ function listUpstreams (req) {
 
             } else {
                 // Return the sorted keys as a response
-                // let id = countKeys(req);
+                countKeys(req);
                 let output = [];
                 let items = proxy.items();
                 for (let i in items){
@@ -153,22 +140,15 @@ function listUpstreams (req) {
 }
 function addUpstreams (req) {
     const requestBody = req.requestBuffer;
-    let id = countKeys(req);
+    countKeys(req);
         if (requestBody) {
             try {
-                let payloadData;
-                try {
                 // Parse the request body as JSON
-                payloadData = JSON.parse(requestBody);
-                } catch(e){
-                    ngx.log(ngx.ERR, 'Invalid JSON: ' + e.message);
-                    responseHandling(req, 400, 'Invalid JSON');
-                    return;
-                }
+                const payloadData = JSON.parse(requestBody);
                 let key = id++;
 
                 if ( proxy.get(key) != undefined ) {
-                    responseHandling(req, 409, `This id: ${key} already exists!`);
+                    responseHandling(req, 409, 'This id already exists!');
                     return;
                 }
 
@@ -189,60 +169,11 @@ function addUpstreams (req) {
                     down = false;
                 }
 
-                let scheme = payloadData.scheme;
-                if (!scheme){
-                    scheme = "http";
-                }
-
-                let port = payloadData.port;
-                if (!port){
-                    port = 80;
-                }
-
-                // Validate that only "server", "down", and "weight" fields are provided
-                const allowedKeys = ['server', 'down', 'weight', 'scheme', 'port'];
-                const payloadKeys = Object.keys(payloadData);
-
-                for (let i in payloadKeys ) {
-                    if (!allowedKeys.includes(payloadKeys[i])) {
-                        responseHandling(req, 400, `Invalid key provided: ${payloadKeys[i]}`);
-                        return;
-                    }
-                }
-
-                // Validate server
-                if (server && !validateServer(server)) {
-                    responseHandling(req, 400, `Invalid server: ${server}`);
-                    return;
-                }
-
-                // Validate port
-                if (port && !validatePort(port)) {
-                    responseHandling(req, 400, `Invalid port: ${port}`);
-                    return;
-                }
-
-                // Validate scheme
-                if (scheme && !validateScheme(scheme)) {
-                    responseHandling(req, 400, `Invalid scheme: ${scheme}`);
-                    return;
-                }
-
-                if (down && ![false, true].includes(down)) {
-                    responseHandling(req, 400, `Invalid value ${down} for "down"`);
-                    return;
-                }
-    
-                if (weight && (typeof weight != 'number' || weight <= 0)) {
-                    responseHandling(req, 400, `Invalid value ${weight} for "weight"`);
-                    return;
-                }
-
-                proxy.set(key, JSON.stringify({"id": key, "scheme": scheme, "server": server, "port": port, "down": down, "weight": weight, "endpoint": `${scheme}://${server}:${port}`}));
+                proxy.set(key, JSON.stringify({"id": key, "server": server.trim(), "down": down, "weight": weight }));
                 
                 let items = {
                     id: key,
-                    server:  JSON.parse(proxy.get(key)).server,
+                    server:  JSON.parse(proxy.get(key)).server.trim(),
                     down: down,
                     weight:  JSON.parse(proxy.get(key)).weight 
                 }
@@ -263,14 +194,13 @@ function addUpstreams (req) {
 
 function deleteUpstreams (req) {
     const requestBody = req.requestBuffer;
-    const upstreamId = handleRequest(req);
         if (requestBody || upstreamId) {
             try {
 
                 let key = upstreamId;
 
                 if ( proxy.get(key) == undefined ) {
-                    responseHandling(req, 404, `Such an id: ${key} does not exist`);
+                    responseHandling(req, 404, 'Such an id does not exist');
                     return;
                 }
 
@@ -309,18 +239,12 @@ function purgeSharedDict(req) {
 
 function editUpstreams(req) {
     const requestBody = req.requestBuffer;
-    const upstreamId = handleRequest(req);
+    
     if (requestBody && upstreamId) {
         try {
-            let payloadData;
-            try {
+            
             // Parse the request body as JSON
-            payloadData = JSON.parse(requestBody);
-            } catch(e){
-                ngx.log(ngx.ERR, 'Invalid JSON: ' + e.message);
-                responseHandling(req, 400, 'Invalid JSON');
-                return;
-            }
+            const payloadData = JSON.parse(requestBody);
 
             // if (payloadData.length == undefined){
             //     listUpstreams (req, upstreamId);
@@ -328,19 +252,14 @@ function editUpstreams(req) {
             // }
 
             let key = upstreamId;
-            const weight = payloadData.weight;
-            const server = payloadData.server;
-            const down = payloadData.down;
-            const scheme = payloadData.scheme;
-            const port = payloadData.port;
 
             if (proxy.get(key) == undefined) {
-                responseHandling(req, 404, `This id ${key} does not exist`);
+                responseHandling(req, 404, 'This id does not exist');
                 return;
             }
 
             // Validate that only "server", "down", and "weight" fields are provided
-            const allowedKeys = ['server', 'down', 'weight', 'scheme', 'port'];
+            const allowedKeys = ['server', 'down', 'weight'];
             const payloadKeys = Object.keys(payloadData);
 
             for (let i in payloadKeys ) {
@@ -350,43 +269,28 @@ function editUpstreams(req) {
                 }
             }
 
-            // Validate server
-            if (server && !validateServer(server)) {
-                responseHandling(req, 400, `Invalid server: ${server}`);
+            // Further validation (optional): Check the types and values of "server", "down", and "weight"
+            if (payloadData.server && (payloadData.server.trim() == '')) {
+                responseHandling(req, 400, 'Invalid value for "server"');
                 return;
             }
 
-            // Validate port
-            if (port && !validatePort(port)) {
-                responseHandling(req, 400, `Invalid port: ${port}`);
+            if (payloadData.down && ![false, true].includes(payloadData.down)) {
+                responseHandling(req, 400, 'Invalid value for "down"');
                 return;
             }
 
-            // Validate scheme
-            if (scheme && !validateScheme(scheme)) {
-                responseHandling(req, 400, `Invalid scheme: ${scheme}`);
+            if (payloadData.weight && (typeof payloadData.weight !== 'number' || payloadData.weight <= 0)) {
+                responseHandling(req, 400, `Invalid value ${payloadData.weight} for "weight"`);
                 return;
             }
-
-            if (down && ![false, true].includes(down)) {
-                responseHandling(req, 400, `Invalid value ${down} for "down"`);
-                return;
-            }
-
-            if (weight && (typeof weight != 'number' || weight <= 0)) {
-                responseHandling(req, 400, `Invalid value ${weight} for "weight"`);
-                return;
-            }
-            
             const existingData = JSON.parse(proxy.get(key));
             // Manually merge existing data with the provided fields using Object.assign
             const updatedData = Object.assign({}, existingData, payloadData);
 
-            updatedData.endpoint = `${updatedData.scheme}://${updatedData.server}:${updatedData.port}`;
-
             proxy.set(key, JSON.stringify(updatedData));
 
-            listUpstreams (req);
+            listUpstreams (req, upstreamId);
             return;
             
 
@@ -406,7 +310,7 @@ function handleUpstreamAPI(req) {
     if (check == undefined){
         transformUpstreams(req);
     }
-    const upstreamId = handleRequest(req);
+    handleRequest(req);
     if (req.method === 'GET') {
         listUpstreams (req);
     } else if (req.method === 'POST' && !upstreamId) {
@@ -415,7 +319,7 @@ function handleUpstreamAPI(req) {
         deleteUpstreams(req);
     } else if (req.method === 'PURGE' && !upstreamId) {
         purgeSharedDict(req);
-    } else if (req.method === 'PUT' && upstreamId) {
+    } else if (req.method === 'PATCH' && upstreamId) {
         editUpstreams(req);
     }
     else {
@@ -427,62 +331,22 @@ function countKeys(req) {
     
     try {
 
-        let id = proxy.size();
-        return id;
+        id = proxy.size();
 
     } catch (e) {
         ngx.log(ngx.ERR, "Failed to count Upstreams: " + e.message);
         responseHandling(req, 500, 'Failed to count Upstreams');
-        return
     }
     
     
-}
-
-
-function validateServer(server) {
-    
-
-    // Regular expressions for domain, IPv4, and IPv6 validation
-    const domainPattern = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)+[a-zA-Z]{2,}$/;  // Simple domain name validation
-    const ipv4Pattern = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;  // IPv4 address validation
-    const ipv6Pattern = /^([a-fA-F0-9]{1,4}:){7,7}[a-fA-F0-9]{1,4}|([a-fA-F0-9]{1,4}:){1,7}:|([a-fA-F0-9]{1,4}:){1,6}:[a-fA-F0-9]{1,4}|([a-fA-F0-9]{1,4}:){1,5}(:[a-fA-F0-9]{1,4}){1,2}|([a-fA-F0-9]{1,4}:){1,4}(:[a-fA-F0-9]{1,4}){1,3}|([a-fA-F0-9]{1,4}:){1,3}(:[a-fA-F0-9]{1,4}){1,4}|([a-fA-F0-9]{1,4}:){1,2}(:[a-fA-F0-9]{1,4}){1,5}|[a-fA-F0-9]{1,4}:((:[a-fA-F0-9]{1,4}){1,6})|:((:[a-fA-F0-9]{1,4}){1,7}|:)$/;  // IPv6 address validation
-    
-    // Validate server
-    if (!(domainPattern.test(server) || ipv4Pattern.test(server) || ipv6Pattern.test(server)) || server == "") {
-        return false;
-    }
-    
-    return true;
-}
-
-function validatePort(port){
-     // Validate port (optional, allow null for defaults)
-     if (port && (isNaN(port) || port <= 0 || port > 65535)) {
-        return false;
-    }
-    return true;
-}
-
-function validateScheme(scheme){
-    // Validate scheme (http or https)
-    if (!['http', 'https'].includes(scheme) || scheme == "") {
-        return false;
-    }
-    return true;
 }
 
 function transformUpstreams(req) {
     let weight;
     let down;
-    let scheme;
-    let port;
     try {
         for (let key in preloadedUpstreams) {
                 let upstream = preloadedUpstreams[key];
-                let  server = upstream.server;
-                scheme = upstream.scheme;
-                port = upstream.port;
                 weight =  upstream.weight;
                 down = upstream.down;
                 if (!down){
@@ -491,43 +355,8 @@ function transformUpstreams(req) {
                 if (!weight){
                     weight = 1;
                 }
-                if (!scheme){
-                    scheme = "http";
-                }
-                if (!port){
-                    port = 80;
-                }
 
-                // Validate that only "server", "down", and "weight" fields are provided
-                const allowedKeys = ['server', 'down', 'weight', 'scheme', 'port'];
-                const payloadKeys = Object.keys(upstream);
-
-                for (let i in payloadKeys ) {
-                    if (!allowedKeys.includes(payloadKeys[i])) {
-                        responseHandling(req, 400, `Invalid key provided: ${payloadKeys[i]} during loading upstreams`);
-                        return;
-                    }
-                }
-
-                // Validate server
-                if (!validateServer(server)) {
-                    responseHandling(req, 400, `Invalid server: ${server}`);
-                    return;
-                }
-
-                // Validate port
-                if (!validatePort(port)) {
-                    responseHandling(req, 400, `Invalid port: ${port}`);
-                    return;
-                }
-
-                // Validate scheme
-                if (!validateScheme(scheme)) {
-                    responseHandling(req, 400, `Invalid scheme: ${scheme}`);
-                    return;
-                }
-
-                proxy.set(key, JSON.stringify({"id": key, "scheme": scheme, "server": server, "port": port, "down": down, "weight": weight, "endpoint": `${scheme}://${server}:${port}`}));
+                proxy.set(key, JSON.stringify({"id": key, "server": upstream.server, "down": down, "weight": weight}));
         }
         const ingress_name = req.variables['ingress_service'];
         count.set(ingress_name, 1);
@@ -535,9 +364,7 @@ function transformUpstreams(req) {
         ngx.log(ngx.ERR, "Failed to read Upstreams: " + e.message);
         responseHandling(req, 500, 'Failed to read Upstreams');
     }
-}
-
-
+}/*  */
     
 export default {
     getUpstream,
