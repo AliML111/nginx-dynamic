@@ -249,6 +249,11 @@ function addUpstreams(req) {
             var payloadData;
 
             try {
+                if (req.headersIn['Content-Type'] != 'application/json'){
+                    ngx.log(ngx.ERR, 'Content-Type is not JSON');
+                    responseHandling(req, 400, 'Content-Type is not JSON');
+                    return;
+                }
                 // Parse the request body as JSON
                 payloadData = JSON.parse(requestBody);
             } catch (e) {
@@ -386,6 +391,11 @@ function editUpstreams(req) {
             var payloadData;
 
             try {
+                if (req.headersIn['Content-Type'] != 'application/json'){
+                    ngx.log(ngx.ERR, 'Content-Type is not JSON');
+                    responseHandling(req, 400, 'Content-Type is not JSON');
+                    return;
+                }
                 // Parse the request body as JSON
                 payloadData = JSON.parse(requestBody);
             } catch (e) {
