@@ -1,13 +1,13 @@
-function validateInput(req){
+function validate_input(req){
     var requestBody = req.requestBuffer;
     if (!requestBody || requestBody.length == 0) {
-        ingress.responseHandling(req, 400, 'Data not provided');
+        ingress.response_handler(req, 400, 'Data not provided');
         return;
     }
     try {
         if (req.headersIn['Content-Type'] != 'application/json'){
             ngx.log(ngx.ERR, 'Content-Type is not JSON');
-            ingress.responseHandling(req, 400, 'Content-Type is not JSON');
+            ingress.response_handler(req, 400, 'Content-Type is not JSON');
             return;
         }
         // Parse the request body as JSON
@@ -15,7 +15,7 @@ function validateInput(req){
 
         if (requestBody.length != undefined){
             ngx.log(ngx.ERR, 'nested object or list');
-            ingress.responseHandling(req, 400, 'nested object or list');
+            ingress.response_handler(req, 400, 'nested object or list');
             return;
         }
         return requestBody;
@@ -23,13 +23,13 @@ function validateInput(req){
 
     } catch (e) {
         ngx.log(ngx.ERR, 'Invalid JSON: ' + e.message);
-        ingress.responseHandling(req, 400, 'Invalid JSON');
+        ingress.response_handler(req, 400, 'Invalid JSON');
         return;
     }
 }
 
 // Function to validate payload data
-function validatePayload(payloadData) {
+function validate_payload(payloadData) {
 
     var allowedKeys = ['server', 'down', 'weight', 'scheme', 'port', 'route'];
 
@@ -37,32 +37,32 @@ function validatePayload(payloadData) {
     var payloadKeys = Object.keys(payloadData);
     for (var i in payloadKeys) {
         if (allowedKeys.indexOf(payloadKeys[i]) === -1) {
-            return { isValid: false, message: 'Invalid key provided: ' + payloadKeys[i] };
+            return { isValid: false, message: 'Invalid field provided: ' + payloadKeys[i] + ' in config file or request'};
         }
     }
 
     // Validate 'server' field (should be a valid server address)
-    if (payloadData.server && (typeof payloadData.server !== 'string' || !validateServer(payloadData.server))) {
+    if (payloadData.server && (typeof payloadData.server !== 'string' || !validate_server(payloadData.server))) {
         return { isValid: false, message: 'Invalid server: ' + payloadData.server };
     }
 
     // Validate 'port' field (should be an integer between 1 and 65535)
-    if (payloadData.port && !validatePort(payloadData.port)) {
+    if (payloadData.port && !validate_port(payloadData.port)) {
         return { isValid: false, message: 'Invalid port: ' + payloadData.port };
     }
 
     // Validate 'scheme' field (should be 'http' or 'https')
-    if (payloadData.scheme && !validateScheme(payloadData.scheme)) {
+    if (payloadData.scheme && !validate_scheme(payloadData.scheme)) {
         return { isValid: false, message: 'Invalid scheme: ' + payloadData.scheme };
     }
 
     // Validate 'down' field (should be a boolean)
-    if (typeof payloadData.down !== 'undefined' && !validateDown(payloadData.down)) {
+    if (typeof payloadData.down !== 'undefined' && !validate_down(payloadData.down)) {
         return { isValid: false, message: 'Invalid value ' + payloadData.down + ' for "down"' };
     }
 
     // Validate 'weight' field (should be a positive integer)
-    if (payloadData.weight && !validateWeight(payloadData.weight)) {
+    if (payloadData.weight && !validate_weight(payloadData.weight)) {
         return { isValid: false, message: 'Invalid value ' + payloadData.weight + ' for "weight"' };
     }
 
@@ -72,17 +72,17 @@ function validatePayload(payloadData) {
 // Validation helper functions
 
 // Validate the 'down' field (boolean)
-function validateDown(down) {
+function validate_down(down) {
     return typeof down === 'boolean';
 }
 
 // Validate the 'weight' field (positive integer)
-function validateWeight(weight) {
+function validate_weight(weight) {
     return typeof weight === 'number' && (weight % 1 === 0) && weight > 0;
 }
 
 // Validate the 'server' field (valid domain or IP address)
-function validateServer(server) {
+function validate_server(server) {
     if (typeof server != 'string') {
         return false; // Ensure the server is a string
     }
@@ -101,17 +101,17 @@ function validateServer(server) {
 }
 
 // Validate the 'port' field (integer between 1 and 65535)
-function validatePort(port) {
+function validate_port(port) {
     return typeof port === 'number' && (port % 1 === 0) && port > 0 && port <= 65535;
 }
 
 // Validate the 'scheme' field ('http' or 'https')
-function validateScheme(scheme) {
+function validate_scheme(scheme) {
     return typeof scheme === 'string' && (scheme === 'http' || scheme === 'https');
 }
 
 // Export the module functions
 export default {
-    validateInput,
-    validatePayload
+    validate_input,
+    validate_payload
 };

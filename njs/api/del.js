@@ -1,9 +1,9 @@
 // Function to delete upstreams
-function deleteUpstreams(req, upstreamId, upstreamName) {    
+function delete_upstreams(req, upstreamId, upstreamName) {    
     try {
 
         if (upstreamName.get(upstreamId) == undefined) {
-            ingress.responseHandling(req, 404, 'Upstream ID ' + upstreamId + ' does not exist');
+            ingress.response_handler(req, 404, 'Upstream ID ' + upstreamId + ' does not exist');
             return;
         }
 
@@ -11,19 +11,19 @@ function deleteUpstreams(req, upstreamId, upstreamName) {
         upstreamName.delete(upstreamId);
 
         if (upstreamName.get(upstreamId) == undefined) {
-            ingress.responseHandling(req, 204, 'Deleted');
+            ingress.response_handler(req, 204, 'Deleted');
         } else {
             ngx.log(ngx.ERR, 'Failed to delete upstream with ID: ' + upstreamId);
-            ingress.responseHandling(req, 500, 'Failed to delete upstream');
+            ingress.response_handler(req, 500, 'Failed to delete upstream');
         }
 
     } catch (e) {
         ngx.log(ngx.ERR, 'Error processing DELETE request: ' + e.message);
-        ingress.responseHandling(req, 500, 'Could not delete upstream');
+        ingress.response_handler(req, 500, 'Could not delete upstream');
         return;
     }
 }
 
 export default {
-    deleteUpstreams
+    delete_upstreams
 }

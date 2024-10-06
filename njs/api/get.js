@@ -4,7 +4,7 @@ import querystring from 'querystring'
 var count = ngx.shared.count; // Shared dictionary for counting requests and other counters
 
 // Function to parse and validate query parameters with manual defaults
-function parseQueryParams(req, defaults) {
+function parse_query_params(req, defaults) {
     // Provide default values if not supplied
     defaults = defaults || { page: 1, per_page: 10, max_per_page: 100 };
 
@@ -30,7 +30,7 @@ function parseQueryParams(req, defaults) {
 }
 
 // Function to handle request and response for multiple upstreams
-function handleMultipleUpstreams(req, upstreamName) {
+function list_multiple_upstreams(req, upstreamName) {
     var output = [];
     var items = upstreamName.items(4096);
 
@@ -47,7 +47,7 @@ function handleMultipleUpstreams(req, upstreamName) {
     });
 
     // Parse query parameters for pagination
-    var queryParams = parseQueryParams(req);
+    var queryParams = parse_query_params(req);
 
     var total_count = output.length; // Total number of upstreams
     var total_pages = Math.ceil(total_count / queryParams.per_page) || 1;
@@ -59,61 +59,23 @@ function handleMultipleUpstreams(req, upstreamName) {
     // Paginate the output based on the query parameters
     var paginatedOutput = output.slice(start, end);
 
-    // Construct the response object
-    var response = {
-        success: true,
-        errors: [],
-        messages: [],
-        result: paginatedOutput,
-        result_info: {
+    
+        var result_info = {
             page: currentPage,
             per_page: queryParams.per_page,
             count: paginatedOutput.length,
             total_count: total_count,
             total_pages: total_pages
-        }
-    };
+        };
 
-    // Set the Content-Type header and send the response
-    req.headersOut['Content-Type'] = 'application/json';
-    req.return(200, JSON.stringify(response));
-}
-
-function listCerts(req, domainName){
-    let fields = ["tls_key", "tls_cert"];
-    let certName = domainName;
-    let kv = ngx.shared.kv;
-    if (!kv.get(domainName + ":tls_key")){
-        ingress.responseHandling(req, 404, `No certificate was found for: ${domainName}`);
-        return;
-    }
-    let output = {}; // Initialize as an object to hold key-value pairs
-    output["cert_name"] = certName;
-    for (let i in fields){
-        let key = fields[i];
-        let value = kv.get(`${certName}:${key}`);
-        value = encodeToBase64(value);
-        output[key] = value; // Assign value to the corresponding key in the output object
-    }
-    req.headersOut['Content-Type'] = 'application/json';
-    req.return(200, JSON.stringify(output));
-}
-
-function encodeToBase64(inputString) {
-    // Create a Buffer from the input string
-    var buffer = Buffer.from(inputString);
-    
-    // Convert the Buffer to a Base64-encoded string
-    var base64String = buffer.toString('base64');
-    
-    return base64String;
+    ingress.response_handler(req, 200, "", paginatedOutput, result_info);
 }
 
 // Function to handle request and response for a single upstream
-function handleSingleUpstream(req, upstreamId, upstreamName) {
+function list_single_upstream(req, upstreamId, upstreamName) {
     // Check if the upstream exists
     if (!upstreamName.get(upstreamId)) {
-        ingress.responseHandling(req, 404, 'Upstream not found!');
+        ingress.response_handler(req, 404, 'Upstream not found!');
         return;
     }
 
@@ -121,22 +83,10 @@ function handleSingleUpstream(req, upstreamId, upstreamName) {
     var parsedServer = JSON.parse(upstreamName.get(upstreamId));
     parsedServer.requests = count.get(parsedServer.endpoint) || 0;
 
-    // Construct the response object
-    var response = {
-        success: true,
-        errors: [],
-        messages: [],
-        result: parsedServer,
-        result_info: null // No pagination info for a single item
-    };
-
-    // Set the Content-Type header and send the response
-    req.headersOut['Content-Type'] = 'application/json';
-    req.return(200, JSON.stringify(response));
+    ingress.response_handler(req, 200, "", parsedServer, null);
 }
 
 export default {
-    handleMultipleUpstreams,
-    handleSingleUpstream,
-    listCerts
+    list_multiple_upstreams,
+    list_single_upstream
 }

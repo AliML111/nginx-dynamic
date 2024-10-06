@@ -1,109 +1,29 @@
 import fs from 'fs'
 var count = ngx.shared.count; // Shared dictionary for counting requests and other counters
 
-/**
- * Join args with a slash remove duplicate slashes
- */
-function joinPaths(...args) {
-    return args.join('/').replace(/\/+/g, '/');
-}
-
-function addCertificates(req, domainName){
-    try {
-        const prefix = req.variables['cert_folder'] || '/etc/nginx/certs/';
-        let certName = domainName;
-        let payloadData = validate.validateInput(req);
-        let kv = ngx.shared.kv;
-        let fields = [["tls_key", ".key.pem"], ["tls_cert", ".cert.pem"]];
-        for (let i in fields) {
-            let object = fields[i][0];
-            let value = payloadData[object];
-            if (!isBase64(value)){
-
-                ingress.responseHandling(req, 400, `${object} is not in base64 format`);
-            }
-            value = decodeBase64(value);
-            
-
-            try {
-                let path = joinPaths(prefix, certName + fields[i][1]);
-                fs.writeFileSync(path, value);
-                ngx.log(ngx.ERR, `Wrote to file. Path: ${path}`);
-                // if (cache) {
-                    let key = certName + ":" + object;
-                    kv.set(key, value);
-                    // kv.set(key + ':base64', payloadData[object]);
-                    ngx.log(ngx.ERR, `Wrote to cache. Key: ${key}`);
-                // }
-              } catch (err) {
-                ngx.log(ngx.ERR, `Error saving ${err}`);
-                ingress.responseHandling(req, 500, `Error saving ${err}`);
-              }
-        }
-    
-        // Set the Content-Type header and send the response
-        req.headersOut['Content-Type'] = 'application/json';
-        req.return(201, JSON.stringify(payloadData));
-    } catch (e) {
-        ngx.log(ngx.ERR, 'Failed to add certificate: ' + e.message);
-        ingress.responseHandling(req, 500, 'Failed to add certificate');
-    } 
-}
-
-function decodeBase64(encodedString) {
-    var buffer = Buffer.from(encodedString, 'base64');
-    var decodedString = buffer.toString();
-    return decodedString;
-}
-
-function isBase64(str) {
-    // Check if the string is empty or not a string
-    if (!str || typeof str !== 'string') {
-        return false;
-    }
-
-    // Remove any whitespace or line breaks
-    str = str.trim();
-
-    // Base64 strings should have a length that's a multiple of 4
-    if (str.length % 4 !== 0) {
-        return false;
-    }
-
-    // Regular expression to check for valid Base64 characters
-    var base64Regex = /^[A-Za-z0-9+/]+={0,2}$/;
-
-    // Test the string against the regex
-    if (!base64Regex.test(str)) {
-        return false;
-    }
-
-    return true;
-}
-
 // Function to add new upstreams
-function addUpstreams(req, upstreamName) {
-    var payloadData = validate.validateInput(req);
+function add_upstreams(req, upstreamName) {
+    var payloadData = validate.validate_input(req);
         try {
 
             if (!payloadData.server) {
                 ngx.log(ngx.ERR, 'Server field is empty');
-                ingress.responseHandling(req, 400, 'Server field is empty');
+                ingress.response_handler(req, 400, 'Server field is empty');
                 return;
             }
 
             // Get the next unique ID for the upstream
-            var id = getNextUniqueId(upstreamName);
+            var id = get_next_unique_id(upstreamName);
 
             // Validate the payload data
-            var validation = validate.validatePayload(payloadData);
+            var validation = validate.validate_payload(payloadData);
             if (!validation.isValid) {
-                ingress.responseHandling(req, 400, validation.message);
+                ingress.response_handler(req, 400, validation.message);
                 return;
             }
 
             // Set default values for missing fields
-            payloadData = setDefaults(payloadData);
+            payloadData = set_defaults(payloadData);
 
             // Construct the upstream data object
             payloadData = {
@@ -117,30 +37,25 @@ function addUpstreams(req, upstreamName) {
                 'endpoint': payloadData.scheme + '://' + payloadData.server + ':' + payloadData.port + payloadData.route
             };
 
+            let stringified = JSON.stringify(payloadData);
+
             // Store the new upstream in the shared dictionary
-            upstreamName.set(id, JSON.stringify(payloadData));
+            upstreamName.set(id, stringified);
 
-            // Construct the response object
-            var response = {
-                success: true,
-                errors: [],
-                messages: [],
-                result: payloadData,
-                result_info: null
-            };
-
-            // Set the Content-Type header and send the response
-            req.headersOut['Content-Type'] = 'application/json';
-            req.return(200, JSON.stringify(response));
+            if (upstreamName.get(id) == stringified){
+                ingress.response_handler(req, 200, "Upstream created successfully", payloadData, null);
+            } else {
+                ingress.response_handler(req, 500, "Something went wrong", null, null);
+            }
 
         } catch (e) {
             ngx.log(ngx.ERR, 'Error processing POST request: ' + e.message);
-            ingress.responseHandling(req, 500, 'Could not add upstream');
+            ingress.response_handler(req, 500, 'Could not add upstream');
         }
 }
 
 // Function to get the next unique ID
-function getNextUniqueId(upstreamName) {
+function get_next_unique_id(upstreamName) {
     var id;
     while (true) {
         // Increment the 'next_id' counter atomically
@@ -155,7 +70,7 @@ function getNextUniqueId(upstreamName) {
 }
 
 // Function to set default values for missing payload fields
-function setDefaults(payload) {
+function set_defaults(payload) {
     if (!payload.scheme) {
         payload.scheme = 'http';
     }
@@ -175,6 +90,5 @@ function setDefaults(payload) {
 }
 
 export default {
-    addUpstreams,
-    addCertificates
+    add_upstreams
 }

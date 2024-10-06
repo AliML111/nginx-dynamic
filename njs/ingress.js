@@ -2,7 +2,7 @@
 var count = ngx.shared.count; // Shared dictionary for counting requests and other counters
 
 
-function handleRequest(req) {
+function request_handler(req) {
     try {
         // Get the complete URI and normalize it
         let uri = req.uri.trim();
@@ -44,15 +44,15 @@ function handleRequest(req) {
         }
     } catch (e) {
         // Log the error and respond with an internal server error
-        ngx.log(ngx.ERR, `Error in handleRequest: ${e.message}`);
-        responseHandling(req, 500, 'Internal Server Error');
+        ngx.log(ngx.ERR, `Error in request_handler: ${e.message}`);
+        response_handler(req, 500, 'Internal Server Error');
         return;
     }
 }
 
 
 // Function to handle API responses
-function responseHandling(req, resCode, resMessage, result, result_info) {
+function response_handler(req, resCode, resMessage, result, result_info) {
     // Set default values if parameters are not provided
     result = (typeof result !== 'undefined') ? result : null;
     result_info = (typeof result_info !== 'undefined') ? result_info : null;
@@ -62,7 +62,7 @@ function responseHandling(req, resCode, resMessage, result, result_info) {
     let output = {
         success: resCode >= 200 && resCode < 300,
         errors: resCode >= 400 ? resMessage : "",
-        message: result,
+        message: resCode >= 200 && resCode < 300 ? resMessage : "",
         request_id: req_id,
         result: result,
         result_info: result_info
@@ -79,26 +79,26 @@ function responseHandling(req, resCode, resMessage, result, result_info) {
 //     try {
 //         // Clear the shared dictionaries and reinitialize upstreams
 //         upstreamName.clear();
-//         transformUpstreams(req);
-//         responseHandling(req, 204, 'Purged');
+//         load_upstreams(req);
+//         response_handler(req, 204, 'Purged');
 
 //     } catch (e) {
 //         ngx.log(ngx.ERR, 'Error processing PURGE request: ' + e.message);
-//         responseHandling(req, 500, 'There was a problem in purging');
+//         response_handler(req, 500, 'There was a problem in purging');
 //     }
 // }
 
 
 
 // Main handler for the API
-function handleAPI(req) {
+function api_handler(req) {
 
     // Determine the resource type and ID from the request
-    let requestInfo = handleRequest(req);
+    let requestInfo = request_handler(req);
 
     if (!requestInfo) {
-        responseHandling(req, 404, `Invalid route`);
-        return; // handleRequest already sent a response
+        response_handler(req, 404, `Invalid route`);
+        return; // request_handler already sent a response
     }
 
     let resourceType = requestInfo.resourceType;
@@ -115,54 +115,54 @@ function handleAPI(req) {
 
     // Dispatch the request based on the resource type
     if (protocol == 'http' ) {
-            handleUpstreams(req, resourceId, resourceName);
+            upstreams_handler(req, resourceId, resourceName);
     } else if (protocol == 'stream') {
         req.return(200);
     } 
     
 }
 
-function handleUpstreams(req, upstreamId, sharedDict) {
+function upstreams_handler(req, upstreamId, sharedDict) {
     if (!sharedDict){
-        responseHandling(req, 404, `Invalid upstream name`);
-        return; // handleRequest already sent a response
+        response_handler(req, 404, `Invalid upstream name`);
+        return; // request_handler already sent a response
     }
 
     let check = count.get(sharedDict);
     // Initialize upstreams if they haven't been loaded yet
     if (check == undefined) {
-        transformUpstreams(req, sharedDict);
+        load_upstreams(req, sharedDict);
+        ngx.log(ngx.INFO, "Read from fs");
     }
 
     if (req.method === 'GET') {
         if (upstreamId) {
-            get.handleSingleUpstream(req, upstreamId, sharedDict);
+            get.list_single_upstream(req, upstreamId, sharedDict);
         } else {
-            get.handleMultipleUpstreams(req, sharedDict);
+            get.list_multiple_upstreams(req, sharedDict);
         }
     } else if (req.method === 'POST' && !upstreamId) {
-        post.addUpstreams(req, sharedDict);
+        post.add_upstreams(req, sharedDict);
     } else if (req.method === 'DELETE' && upstreamId) {
-        del.deleteUpstreams(req, upstreamId, sharedDict);
+        del.delete_upstreams(req, upstreamId, sharedDict);
     } else if ((req.method === 'PUT' || req.method === 'PATCH') && upstreamId) {
-        put.editUpstreams(req, upstreamId, sharedDict);
+        put.edit_upstreams(req, upstreamId, sharedDict);
     } else {
-        responseHandling(req, 405, 'Method Not Allowed');
+        response_handler(req, 405, 'Method Not Allowed');
     }
 }
 
 // Function to transform preloaded upstreams into the shared dictionary
-function transformUpstreams(req, upstreamName) {
+function load_upstreams(req, upstreamName) {
     try {
         for (var key in preloadedUpstreams) {
             let id = parseInt(key, 10); // Convert key to a number
             let upstream = preloadedUpstreams[key];
 
             // Validation of the upstream data
-            let validation = validate.validatePayload(upstream);
+            let validation = validate.validate_payload(upstream);
             if (!validation.isValid) {
-                responseHandling(req, 400, validation.message);
-                return;
+                response_handler(req, 400, validation.message);                
             }
 
             let server = upstream.server;
@@ -187,16 +187,16 @@ function transformUpstreams(req, upstreamName) {
         }
 
         // Mark the ingress as initialized
-        count.set(upstreamName.name, 1);
+        count.set(upstreamName, 1);
     } catch (e) {
         ngx.log(ngx.ERR, 'Failed to read Upstreams: ' + e.message);
-        responseHandling(req, 500, 'Failed to read Upstreams');
+        response_handler(req, 500, 'Failed to read Upstreams');
     }
 }
 
 // Export the module functions
 export default {
-    handleUpstreamAPI: handleAPI,
-    transformUpstreams,
-    responseHandling,
+    api_handler: api_handler,
+    load_upstreams,
+    response_handler,
 };

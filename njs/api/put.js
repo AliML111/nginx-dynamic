@@ -1,18 +1,18 @@
 // Function to edit upstreams
-function editUpstreams(req, upstreamId, upstreamName) {
-    var payloadData = validate.validateInput(req);
+function edit_upstreams(req, upstreamId, upstreamName) {
+    var payloadData = validate.validate_input(req);
         try {
 
             // Check if id exists
             if(!upstreamName.get(upstreamId)){
-                ingress.responseHandling(req, 404, 'Upstream ID ' + upstreamId + ' does not exist');
+                ingress.response_handler(req, 404, 'Upstream ID ' + upstreamId + ' does not exist');
                 return;
             }
 
             // Validate the payload data
-            var validation = validate.validatePayload(payloadData);
+            var validation = validate.validate_payload(payloadData);
             if (!validation.isValid) {
-                ingress.responseHandling(req, 404, validation.message);
+                ingress.response_handler(req, 404, validation.message);
                 return;
             }
 
@@ -32,28 +32,23 @@ function editUpstreams(req, upstreamId, upstreamName) {
             // Update the endpoint based on new data
             updatedData.endpoint = updatedData.scheme + '://' + updatedData.server + ':' + updatedData.port + updatedData.route;
 
+            let stringified = JSON.stringify(updatedData);
+
             // Save the updated upstream data
-            upstreamName.set(upstreamId, JSON.stringify(updatedData));
+            upstreamName.set(upstreamId, stringified);
 
-            // Construct the response object
-            var response = {
-                success: true,
-                errors: [],
-                messages: [],
-                result: updatedData,
-                result_info: null
-            };
-
-            // Set the Content-Type header and send the response
-            req.headersOut['Content-Type'] = 'application/json';
-            req.return(200, JSON.stringify(response));
+            // if (upstreamName.get(upstreamName) == stringified){
+                ingress.response_handler(req, 200, "Upstream updated successfully", updatedData, null);
+            // } else {
+                // ingress.response_handler(req, 500, "Something went wrong", null, null);
+            // }
 
         } catch (e) {
             ngx.log(ngx.ERR, 'Error processing PUT request: ' + e.message);
-            ingress.responseHandling(req, 500, 'Could not edit upstream');
+            ingress.response_handler(req, 500, 'Could not edit upstream');
         }
 }
 
 export default {
-    editUpstreams
+    edit_upstreams
 }

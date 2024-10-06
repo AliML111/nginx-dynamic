@@ -1,13 +1,13 @@
 var count = ngx.shared.count; // Shared dictionary for counting requests and other counters
 
 // Function to get the upstream for the request
-function getUpstream(req) {
+function get_upstream(req) {
     var upstreamName = req.variables['upstream_name'];
     upstreamName = ngx.shared[upstreamName];
 
     // Initialize upstreams for this ingress if they haven't been loaded yet
     if (!count.get(upstreamName.name)) {
-        ingress.transformUpstreams(req, upstreamName);
+        ingress.load_upstreams(req, upstreamName);
     }
 
     // Get the list of upstreams from the shared dictionary
@@ -16,7 +16,7 @@ function getUpstream(req) {
 
     // Return error if no upstreams are available
     if (numUpstreams === 0) {
-        invalidBackend(req, 503);
+        invalid_backend(req, 503);
         return;
     }
 
@@ -49,15 +49,16 @@ function getUpstream(req) {
 
     // Return the selected backend endpoint
     return backend;
+    
 }
 
 // Function to handle invalid backend cases
-function invalidBackend(req, code) {
+function invalid_backend(req, code) {
     req.return(code, 'Invalid Backend');
     req.finish();
-    return '@invalidbackend';
+    return '@invalid_backend';
 }
 
 export default {
-    getUpstream
+    get_upstream
 }
