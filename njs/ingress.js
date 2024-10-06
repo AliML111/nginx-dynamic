@@ -110,8 +110,7 @@ function handleAPI(req) {
     if (resourceType == "upstreams"){
         resourceName = ngx.shared[resourceName];
     } else if (resourceType == "certs"){
-        ngx.log(ngx.ERR, "check: " + resourceName);
-        handleCerts(req, resourceName);
+        req.return(500, "Not implemented yet");
     }
 
     // Dispatch the request based on the resource type
@@ -147,16 +146,6 @@ function handleUpstreams(req, upstreamId, sharedDict) {
         del.deleteUpstreams(req, upstreamId, sharedDict);
     } else if ((req.method === 'PUT' || req.method === 'PATCH') && upstreamId) {
         put.editUpstreams(req, upstreamId, sharedDict);
-    } else {
-        responseHandling(req, 405, 'Method Not Allowed');
-    }
-}
-
-function handleCerts(req, domainName){
-    if (req.method === 'GET') {
-        get.listCerts(req, domainName);
-    } if (req.method === 'POST') {
-        post.addCertificates(req, domainName);
     } else {
         responseHandling(req, 405, 'Method Not Allowed');
     }
