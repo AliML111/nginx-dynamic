@@ -12,9 +12,12 @@ services:
     container_name: angie-lb
     ports:
      - 8080:80
+     - 8081:81
+     - 8082:82
     volumes:
       - "./angie.conf:/etc/angie/angie.conf"
       - "./njs:/etc/angie/njs"
+      - "./certs:/etc/angie/certs"
 
     networks:
       custom_net:

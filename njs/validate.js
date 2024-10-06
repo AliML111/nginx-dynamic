@@ -1,0 +1,117 @@
+function validateInput(req){
+    var requestBody = req.requestBuffer;
+    if (!requestBody || requestBody.length == 0) {
+        ingress.responseHandling(req, 400, 'Data not provided');
+        return;
+    }
+    try {
+        if (req.headersIn['Content-Type'] != 'application/json'){
+            ngx.log(ngx.ERR, 'Content-Type is not JSON');
+            ingress.responseHandling(req, 400, 'Content-Type is not JSON');
+            return;
+        }
+        // Parse the request body as JSON
+        requestBody = JSON.parse(requestBody);
+
+        if (requestBody.length != undefined){
+            ngx.log(ngx.ERR, 'nested object or list');
+            ingress.responseHandling(req, 400, 'nested object or list');
+            return;
+        }
+        return requestBody;
+
+
+    } catch (e) {
+        ngx.log(ngx.ERR, 'Invalid JSON: ' + e.message);
+        ingress.responseHandling(req, 400, 'Invalid JSON');
+        return;
+    }
+}
+
+// Function to validate payload data
+function validatePayload(payloadData) {
+
+    var allowedKeys = ['server', 'down', 'weight', 'scheme', 'port', 'route'];
+
+    // Check for any invalid keys in the payload
+    var payloadKeys = Object.keys(payloadData);
+    for (var i in payloadKeys) {
+        if (allowedKeys.indexOf(payloadKeys[i]) === -1) {
+            return { isValid: false, message: 'Invalid key provided: ' + payloadKeys[i] };
+        }
+    }
+
+    // Validate 'server' field (should be a valid server address)
+    if (payloadData.server && (typeof payloadData.server !== 'string' || !validateServer(payloadData.server))) {
+        return { isValid: false, message: 'Invalid server: ' + payloadData.server };
+    }
+
+    // Validate 'port' field (should be an integer between 1 and 65535)
+    if (payloadData.port && !validatePort(payloadData.port)) {
+        return { isValid: false, message: 'Invalid port: ' + payloadData.port };
+    }
+
+    // Validate 'scheme' field (should be 'http' or 'https')
+    if (payloadData.scheme && !validateScheme(payloadData.scheme)) {
+        return { isValid: false, message: 'Invalid scheme: ' + payloadData.scheme };
+    }
+
+    // Validate 'down' field (should be a boolean)
+    if (typeof payloadData.down !== 'undefined' && !validateDown(payloadData.down)) {
+        return { isValid: false, message: 'Invalid value ' + payloadData.down + ' for "down"' };
+    }
+
+    // Validate 'weight' field (should be a positive integer)
+    if (payloadData.weight && !validateWeight(payloadData.weight)) {
+        return { isValid: false, message: 'Invalid value ' + payloadData.weight + ' for "weight"' };
+    }
+
+    return { isValid: true };
+}
+
+// Validation helper functions
+
+// Validate the 'down' field (boolean)
+function validateDown(down) {
+    return typeof down === 'boolean';
+}
+
+// Validate the 'weight' field (positive integer)
+function validateWeight(weight) {
+    return typeof weight === 'number' && (weight % 1 === 0) && weight > 0;
+}
+
+// Validate the 'server' field (valid domain or IP address)
+function validateServer(server) {
+    if (typeof server != 'string') {
+        return false; // Ensure the server is a string
+    }
+
+    // Regular expressions for domain, IPv4, and IPv6 validation
+    var domainPattern = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)+[a-zA-Z]{2,}$/; // Simple domain name validation
+    var ipv4Pattern = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/; // IPv4 address validation
+    var ipv6Pattern = /^([a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/; // Simplified IPv6 validation
+
+    // Validate server against the patterns
+    if (!(domainPattern.test(server) || ipv4Pattern.test(server) || ipv6Pattern.test(server)) || server === '') {
+        return false;
+    }
+
+    return true;
+}
+
+// Validate the 'port' field (integer between 1 and 65535)
+function validatePort(port) {
+    return typeof port === 'number' && (port % 1 === 0) && port > 0 && port <= 65535;
+}
+
+// Validate the 'scheme' field ('http' or 'https')
+function validateScheme(scheme) {
+    return typeof scheme === 'string' && (scheme === 'http' || scheme === 'https');
+}
+
+// Export the module functions
+export default {
+    validateInput,
+    validatePayload
+};
