@@ -68,14 +68,14 @@ function list_multiple_upstreams(req, upstreamName) {
             total_pages: total_pages
         };
 
-    ingress.response_handler(req, 200, "", paginatedOutput, result_info);
+    handler.response_handler(req, 200, "", paginatedOutput, result_info);
 }
 
 // Function to handle request and response for a single upstream
 function list_single_upstream(req, upstreamId, upstreamName) {
     // Check if the upstream exists
     if (!upstreamName.get(upstreamId)) {
-        ingress.response_handler(req, 404, 'Upstream not found!');
+        handler.response_handler(req, 404, 'Upstream not found!');
         return;
     }
 
@@ -83,7 +83,7 @@ function list_single_upstream(req, upstreamId, upstreamName) {
     var parsedServer = JSON.parse(upstreamName.get(upstreamId));
     parsedServer.requests = count.get(parsedServer.endpoint) || 0;
 
-    ingress.response_handler(req, 200, "", parsedServer, null);
+    handler.response_handler(req, 200, "", parsedServer, null);
 }
 
 export default {

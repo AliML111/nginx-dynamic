@@ -5,14 +5,14 @@ function edit_upstreams(req, upstreamId, upstreamName) {
 
             // Check if id exists
             if(!upstreamName.get(upstreamId)){
-                ingress.response_handler(req, 404, 'Upstream ID ' + upstreamId + ' does not exist');
+                handler.response_handler(req, 404, 'Upstream ID ' + upstreamId + ' does not exist');
                 return;
             }
 
             // Validate the payload data
             var validation = validate.validate_payload(payloadData);
             if (!validation.isValid) {
-                ingress.response_handler(req, 404, validation.message);
+                handler.response_handler(req, 404, validation.message);
                 return;
             }
 
@@ -38,14 +38,14 @@ function edit_upstreams(req, upstreamId, upstreamName) {
             upstreamName.set(upstreamId, stringified);
 
             // if (upstreamName.get(upstreamName) == stringified){
-                ingress.response_handler(req, 200, "Upstream updated successfully", updatedData, null);
+                handler.response_handler(req, 200, "Upstream updated successfully", updatedData, null);
             // } else {
-                // ingress.response_handler(req, 500, "Something went wrong", null, null);
+                // handler.response_handler(req, 500, "Something went wrong", null, null);
             // }
 
         } catch (e) {
             ngx.log(ngx.ERR, 'Error processing PUT request: ' + e.message);
-            ingress.response_handler(req, 500, 'Could not edit upstream');
+            handler.response_handler(req, 500, 'Could not edit upstream');
         }
 }
 

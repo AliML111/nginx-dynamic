@@ -1,13 +1,13 @@
 function validate_input(req){
     var requestBody = req.requestBuffer;
     if (!requestBody || requestBody.length == 0) {
-        ingress.response_handler(req, 400, 'Data not provided');
+        handler.response_handler(req, 400, 'Data not provided');
         return;
     }
     try {
         if (req.headersIn['Content-Type'] != 'application/json'){
             ngx.log(ngx.ERR, 'Content-Type is not JSON');
-            ingress.response_handler(req, 400, 'Content-Type is not JSON');
+            handler.response_handler(req, 400, 'Content-Type is not JSON');
             return;
         }
         // Parse the request body as JSON
@@ -15,7 +15,7 @@ function validate_input(req){
 
         if (requestBody.length != undefined){
             ngx.log(ngx.ERR, 'nested object or list');
-            ingress.response_handler(req, 400, 'nested object or list');
+            handler.response_handler(req, 400, 'nested object or list');
             return;
         }
         return requestBody;
@@ -23,7 +23,7 @@ function validate_input(req){
 
     } catch (e) {
         ngx.log(ngx.ERR, 'Invalid JSON: ' + e.message);
-        ingress.response_handler(req, 400, 'Invalid JSON');
+        handler.response_handler(req, 400, 'Invalid JSON');
         return;
     }
 }

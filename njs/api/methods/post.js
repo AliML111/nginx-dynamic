@@ -8,7 +8,7 @@ function add_upstreams(req, upstreamName) {
 
             if (!payloadData.server) {
                 ngx.log(ngx.ERR, 'Server field is empty');
-                ingress.response_handler(req, 400, 'Server field is empty');
+                handler.response_handler(req, 400, 'Server field is empty');
                 return;
             }
 
@@ -18,7 +18,7 @@ function add_upstreams(req, upstreamName) {
             // Validate the payload data
             var validation = validate.validate_payload(payloadData);
             if (!validation.isValid) {
-                ingress.response_handler(req, 400, validation.message);
+                handler.response_handler(req, 400, validation.message);
                 return;
             }
 
@@ -43,14 +43,14 @@ function add_upstreams(req, upstreamName) {
             upstreamName.set(id, stringified);
 
             if (upstreamName.get(id) == stringified){
-                ingress.response_handler(req, 200, "Upstream created successfully", payloadData, null);
+                handler.response_handler(req, 200, "Upstream created successfully", payloadData, null);
             } else {
-                ingress.response_handler(req, 500, "Something went wrong", null, null);
+                handler.response_handler(req, 500, "Something went wrong", null, null);
             }
 
         } catch (e) {
             ngx.log(ngx.ERR, 'Error processing POST request: ' + e.message);
-            ingress.response_handler(req, 500, 'Could not add upstream');
+            handler.response_handler(req, 500, 'Could not add upstream');
         }
 }
 

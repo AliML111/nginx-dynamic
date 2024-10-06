@@ -5,9 +5,9 @@ function get_upstream(req) {
     var upstreamName = req.variables['upstream_name'];
     upstreamName = ngx.shared[upstreamName];
 
-    // Initialize upstreams for this ingress if they haven't been loaded yet
+    // Initialize upstreams for this handler if they haven't been loaded yet
     if (!count.get(upstreamName.name)) {
-        ingress.load_upstreams(req, upstreamName);
+        handler.load_upstreams(req, upstreamName);
     }
 
     // Get the list of upstreams from the shared dictionary
