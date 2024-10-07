@@ -1,5 +1,5 @@
 function validate_input(req){
-    var requestBody = req.requestBuffer;
+    let requestBody = req.requestBuffer;
     if (!requestBody || requestBody.length == 0) {
         handler.response_handler(req, 400, 'Data not provided');
         return;
@@ -31,11 +31,11 @@ function validate_input(req){
 // Function to validate payload data
 function validate_payload(payloadData) {
 
-    var allowedKeys = ['server', 'down', 'weight', 'scheme', 'port', 'route'];
+    let allowedKeys = ['server', 'down', 'weight', 'scheme', 'port', 'route'];
 
     // Check for any invalid keys in the payload
-    var payloadKeys = Object.keys(payloadData);
-    for (var i in payloadKeys) {
+    let payloadKeys = Object.keys(payloadData);
+    for (let i in payloadKeys) {
         if (allowedKeys.indexOf(payloadKeys[i]) === -1) {
             return { isValid: false, message: 'Invalid field provided: ' + payloadKeys[i] + ' in config file or request'};
         }
@@ -88,16 +88,12 @@ function validate_server(server) {
     }
 
     // Regular expressions for domain, IPv4, and IPv6 validation
-    var domainPattern = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)+[a-zA-Z]{2,}$/; // Simple domain name validation
-    var ipv4Pattern = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/; // IPv4 address validation
-    var ipv6Pattern = /^([a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/; // Simplified IPv6 validation
+    let domainPattern = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)+[a-zA-Z]{2,}$/; // Simple domain name validation
+    let ipv4Pattern = /^((25[0-5]|2[0-4]\d|[01]?\d\d?)(\.|$)){4}$/; // IPv4 address validation
+    let ipv6Pattern = /^([a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/; // Simplified IPv6 validation
 
     // Validate server against the patterns
-    if (!(domainPattern.test(server) || ipv4Pattern.test(server) || ipv6Pattern.test(server)) || server === '') {
-        return false;
-    }
-
-    return true;
+    return (domainPattern.test(server) || ipv4Pattern.test(server) || ipv6Pattern.test(server)) && server !== '';
 }
 
 // Validate the 'port' field (integer between 1 and 65535)

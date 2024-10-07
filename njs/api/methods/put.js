@@ -1,6 +1,6 @@
 // Function to edit upstreams
 function edit_upstreams(req, upstreamId, upstreamName) {
-    var payloadData = validate.validate_input(req);
+    let payloadData = validate.validate_input(req);
         try {
 
             // Check if id exists
@@ -10,24 +10,17 @@ function edit_upstreams(req, upstreamId, upstreamName) {
             }
 
             // Validate the payload data
-            var validation = validate.validate_payload(payloadData);
+            let validation = validate.validate_payload(payloadData);
             if (!validation.isValid) {
                 handler.response_handler(req, 404, validation.message);
                 return;
             }
 
             // Retrieve existing upstream data
-            var existingData = JSON.parse(upstreamName.get(upstreamId));
+            let existingData = JSON.parse(upstreamName.get(upstreamId));
+            
             // Manually merge existing data with the provided fields using Object.assign
             const updatedData = Object.assign({}, existingData, payloadData);
-            // Merge existing data with the provided fields
-            // var updatedData = {};
-            // for (var prop in existingData) {
-            //     updatedData[prop] = existingData[prop];
-            // }
-            // for (var prop in payloadData) {
-            //     updatedData[prop] = payloadData[prop];
-            // }
 
             // Update the endpoint based on new data
             updatedData.endpoint = updatedData.scheme + '://' + updatedData.server + ':' + updatedData.port + updatedData.route;

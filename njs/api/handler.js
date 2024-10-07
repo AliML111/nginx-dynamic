@@ -1,5 +1,5 @@
 // Import required modules
-var count = ngx.shared.count; // Shared dictionary for counting requests and other counters
+let count = ngx.shared.count; // Shared dictionary for counting requests and other counters
 
 
 function request_handler(req) {
@@ -16,7 +16,7 @@ function request_handler(req) {
         // Matches:
         // - /api/v1/{protocol}/upstreams/{upstreamName}(/id)
         // - /api/v1/{protocol}/certs/{domainName}
-        const pattern = /^\/api\/v1\/(http|stream)\/(upstreams|certs)\/([^\/]+)(?:\/(\d+))?$/;
+        const pattern = /^\/api\/v1\/(http|stream)\/(upstreams|certs)\/([^/]+)(?:\/(\d+))?$/;
 
         // Match the URI against the pattern
         const match = uri.match(pattern);
@@ -155,7 +155,7 @@ function upstreams_handler(req, upstreamId, sharedDict) {
 // Function to transform preloaded upstreams into the shared dictionary
 function load_upstreams(req, upstreamName) {
     try {
-        for (var key in preloadedUpstreams) {
+        for (let key in preloadedUpstreams) {
             let id = parseInt(key, 10); // Convert key to a number
             let upstream = preloadedUpstreams[key];
 

@@ -34,14 +34,12 @@ function get_upstream(req) {
     // Generate random number between 0 and total weight
     let randomWeight = Math.random() * totalWeight;
     let backend;
-    let backendWeight= 0;
     let accumulatedWeight = 0;
     for (let i = 0; i < numUpstreams; i++) {
         let currentItem = JSON.parse(items[i][1]);
         accumulatedWeight += currentItem.weight;
         if (accumulatedWeight >= randomWeight) {
             backend = currentItem.endpoint;
-            backendWeight = currentItem.weight;
             // Increment request count for the backend
             count.incr(currentItem.id, 1, 0);
             break;

@@ -1,9 +1,8 @@
-import fs from 'fs'
-var count = ngx.shared.count; // Shared dictionary for counting requests and other counters
+let count = ngx.shared.count; // Shared dictionary for counting requests and other counters
 
 // Function to add new upstreams
 function add_upstreams(req, upstreamName) {
-    var payloadData = validate.validate_input(req);
+    let payloadData = validate.validate_input(req);
         try {
 
             if (!payloadData.server) {
@@ -13,10 +12,10 @@ function add_upstreams(req, upstreamName) {
             }
 
             // Get the next unique ID for the upstream
-            var id = get_next_unique_id(upstreamName);
-
+            let id = get_next_unique_id(upstreamName);
+            
             // Validate the payload data
-            var validation = validate.validate_payload(payloadData);
+            let validation = validate.validate_payload(payloadData);
             if (!validation.isValid) {
                 handler.response_handler(req, 400, validation.message);
                 return;
@@ -56,7 +55,7 @@ function add_upstreams(req, upstreamName) {
 
 // Function to get the next unique ID
 function get_next_unique_id(upstreamName) {
-    var id;
+    let id;
     while (true) {
         // Increment the 'next_id' counter atomically
         id = count.incr('next_id', 1, 0);
