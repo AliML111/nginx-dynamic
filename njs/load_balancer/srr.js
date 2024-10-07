@@ -1,8 +1,8 @@
-var count = ngx.shared.count; // Shared dictionary for counting requests and other counters
+let count = ngx.shared.count; // Shared dictionary for counting requests and other counters
 
 // Function to get the upstream for the request
 function get_upstream(req) {
-    var upstreamName = req.variables['upstream_name'];
+    let upstreamName = req.variables['upstream_name'];
     upstreamName = ngx.shared[upstreamName];
 
     // Initialize upstreams for this handler if they haven't been loaded yet
@@ -12,8 +12,8 @@ function get_upstream(req) {
     }
 
     // Get the list of upstreams from the shared dictionary
-    var items = upstreamName.items();
-    var numUpstreams = items.length;
+    let items = upstreamName.items();
+    let numUpstreams = items.length;
 
     // Return error if no upstreams are available
     if (numUpstreams === 0) {
@@ -22,24 +22,19 @@ function get_upstream(req) {
     }
 
     // Atomic operation to retrieve and increment index and weight in one step
-    var indexKey = 'index';
-    var weightKey = 'weight';
+    let indexKey = 'index';
+    let weightKey = 'weight';
 
     // Calculate the round-robin index and increment the counters
-    var roundRobinIndex = count.incr(indexKey, 1, 0) % numUpstreams;
+    let roundRobinIndex = count.incr(indexKey, 1, 0) % numUpstreams;
 
     // Get the current upstream item based on the round-robin index
-    var currentItem = JSON.parse(items[roundRobinIndex][1]);
+    let currentItem = JSON.parse(items[roundRobinIndex][1]);
 
-    var backend = currentItem.endpoint;
+    let backend = currentItem.endpoint;
 
     // Increment request count for the backend
     count.incr(currentItem.id, 1, 0);
-
-    // Optionally log the selected backend (commented out)
-    // ngx.log(ngx.ERR, 'Selected backend: ' + backend + ' at index: ' + roundRobinIndex +
-    //     ', weight counter: ' + weightCounter + ', backend weight: ' + backendWeight +
-    //     ', number of reqs: ' + reqCounter);
 
     // Return the selected backend endpoint
     return backend;
