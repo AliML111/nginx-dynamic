@@ -21,9 +21,8 @@ function get_upstream(req) {
         return;
     }
 
-    // Atomic operation to retrieve and increment index and weight in one step
+    // Atomic operation to retrieve and increment index 
     let indexKey = 'index';
-    let weightKey = 'weight';
 
     // Calculate the round-robin index and increment the counters
     let roundRobinIndex = count.incr(indexKey, 1, 0) % numUpstreams;
