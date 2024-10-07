@@ -28,7 +28,7 @@ function request_handler(req) {
             const resourceId = match[4] || null; // '1' or null
 
             // Log the extracted components for debugging
-            ngx.log(ngx.ERR, `Protocol: ${protocol}, Resource Type: ${resourceType}, Resource Name: ${resourceName}, Resource ID: ${resourceId}`);
+            ngx.log(ngx.INFO, `Protocol: ${protocol}, Resource Type: ${resourceType}, Resource Name: ${resourceName}, Resource ID: ${resourceId}`);
 
             return {
                 protocol: protocol,

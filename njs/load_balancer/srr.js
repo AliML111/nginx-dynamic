@@ -6,8 +6,9 @@ function get_upstream(req) {
     upstreamName = ngx.shared[upstreamName];
 
     // Initialize upstreams for this handler if they haven't been loaded yet
-    if (!count.get(upstreamName.name)) {
+    if (!count.get(upstreamName)) {
         handler.load_upstreams(req, upstreamName);
+        ngx.log(ngx.INFO, "Read from fs");
     }
 
     // Get the list of upstreams from the shared dictionary
@@ -26,21 +27,14 @@ function get_upstream(req) {
 
     // Calculate the round-robin index and increment the counters
     var roundRobinIndex = count.incr(indexKey, 1, 0) % numUpstreams;
-    var weightCounter = count.incr(weightKey, 1, 0);
 
     // Get the current upstream item based on the round-robin index
     var currentItem = JSON.parse(items[roundRobinIndex][1]);
 
     var backend = currentItem.endpoint;
-    var backendWeight = currentItem.weight;
 
     // Increment request count for the backend
-    count.incr(backend, 1, 0);
-
-    // Reset weight counter if it exceeds the backend weight
-    if (weightCounter >= backendWeight) {
-        count.set(weightKey, 0);
-    }
+    count.incr(currentItem.id, 1, 0);
 
     // Optionally log the selected backend (commented out)
     // ngx.log(ngx.ERR, 'Selected backend: ' + backend + ' at index: ' + roundRobinIndex +

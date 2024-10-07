@@ -37,7 +37,7 @@ function list_multiple_upstreams(req, upstreamName) {
     // Collect all upstreams and their request counts
     for (var i in items) {
         var parsedServer = JSON.parse(items[i][1]);
-        parsedServer.requests = count.get(parsedServer.endpoint) || 0;
+        parsedServer.requests = count.get(parsedServer.id) || 0;
         output.push(parsedServer);
     }
 
@@ -81,7 +81,7 @@ function list_single_upstream(req, upstreamId, upstreamName) {
 
     // Retrieve and parse the upstream data
     var parsedServer = JSON.parse(upstreamName.get(upstreamId));
-    parsedServer.requests = count.get(parsedServer.endpoint) || 0;
+    parsedServer.requests = count.get(parsedServer.id) || 0;
 
     handler.response_handler(req, 200, "", parsedServer, null);
 }
