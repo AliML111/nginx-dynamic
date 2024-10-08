@@ -39,6 +39,7 @@ function edit_upstreams(req, upstreamId, upstreamName) {
         } catch (e) {
             ngx.log(ngx.ERR, 'Error processing PUT request: ' + e.message);
             handler.response_handler(req, 500, 'Could not edit upstream');
+            return;
         }
 }
 

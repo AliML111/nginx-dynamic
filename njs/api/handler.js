@@ -143,7 +143,7 @@ function upstreams_handler(req, upstreamId, sharedDict) {
         }
     } else if (req.method === 'POST' && !upstreamId) {
         post.add_upstreams(req, sharedDict);
-    } else if (req.method === 'DELETE' && upstreamId) {
+    } else if (req.method === 'DELETE') {
         del.delete_upstreams(req, upstreamId, sharedDict);
     } else if ((req.method === 'PUT' || req.method === 'PATCH') && upstreamId) {
         put.edit_upstreams(req, upstreamId, sharedDict);
@@ -191,6 +191,7 @@ function load_upstreams(req, upstreamName) {
     } catch (e) {
         ngx.log(ngx.ERR, 'Failed to read Upstreams: ' + e.message);
         response_handler(req, 500, 'Failed to read Upstreams');
+        return;
     }
 }
 

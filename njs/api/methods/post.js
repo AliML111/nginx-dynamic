@@ -45,11 +45,13 @@ function add_upstreams(req, upstreamName) {
                 handler.response_handler(req, 200, "Upstream created successfully", payloadData, null);
             } else {
                 handler.response_handler(req, 500, "Something went wrong", null, null);
+                return;
             }
 
         } catch (e) {
             ngx.log(ngx.ERR, 'Error processing POST request: ' + e.message);
             handler.response_handler(req, 500, 'Could not add upstream');
+            return;
         }
 }
 

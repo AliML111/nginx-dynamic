@@ -42,28 +42,33 @@ function validate_payload(payloadData) {
     }
 
     // Validate 'server' field (should be a valid server address)
-    if (payloadData.server && (typeof payloadData.server !== 'string' || !validate_server(payloadData.server))) {
-        return { isValid: false, message: 'Invalid server: ' + payloadData.server };
+    if (payloadData.server != null && !validate_server(payloadData.server)) {
+        return { isValid: false, message: `Invalid value for server: "${payloadData.server}"` };
     }
 
     // Validate 'port' field (should be an integer between 1 and 65535)
-    if (payloadData.port && !validate_port(payloadData.port)) {
-        return { isValid: false, message: 'Invalid port: ' + payloadData.port };
+    if (payloadData.port != null && !validate_port(payloadData.port)) {
+        return { isValid: false, message: `Invalid value for port: "${payloadData.port}"` };
     }
 
     // Validate 'scheme' field (should be 'http' or 'https')
-    if (payloadData.scheme && !validate_scheme(payloadData.scheme)) {
-        return { isValid: false, message: 'Invalid scheme: ' + payloadData.scheme };
+    if (payloadData.scheme != null && !validate_scheme(payloadData.scheme)) {
+        return { isValid: false, message: `Invalid value for scheme: "${payloadData.scheme}"` };
     }
 
     // Validate 'down' field (should be a boolean)
-    if (typeof payloadData.down !== 'undefined' && !validate_down(payloadData.down)) {
-        return { isValid: false, message: 'Invalid value ' + payloadData.down + ' for "down"' };
+    if (payloadData.down != null && !validate_down(payloadData.down)) {
+        return { isValid: false, message: `Invalid value for down: "${payloadData.down}"` };
     }
 
     // Validate 'weight' field (should be a positive integer)
-    if (payloadData.weight && !validate_weight(payloadData.weight)) {
-        return { isValid: false, message: 'Invalid value ' + payloadData.weight + ' for "weight"' };
+    if (payloadData.weight != null && !validate_weight(payloadData.weight)) {
+        return { isValid: false, message: `Invalid value for weight: "${payloadData.weight}"` };
+    }
+
+    // Validate 'route' field 
+    if (payloadData.route != null && !validate_route(payloadData.route)) {
+        return { isValid: false, message: `Invalid value for route: "${payloadData.route}"` };
     }
 
     return { isValid: true };
@@ -91,9 +96,10 @@ function validate_server(server) {
     let domainPattern = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)+[a-zA-Z]{2,}$/; // Simple domain name validation
     let ipv4Pattern = /^((25[0-5]|2[0-4]\d|[01]?\d\d?)(\.|$)){4}$/; // IPv4 address validation
     let ipv6Pattern = /^([a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/; // Simplified IPv6 validation
+    let unixSocketPattern = /^unix:\/[\w\/\-\.]+$/;                   // Unix socket path validation (e.g., unix:/path/to/socket)
 
-    // Validate server against the patterns
-    return (domainPattern.test(server) || ipv4Pattern.test(server) || ipv6Pattern.test(server)) && server !== '';
+    // Validate the server against the patterns
+    return domainPattern.test(server) || ipv4Pattern.test(server) || ipv6Pattern.test(server) || unixSocketPattern.test(server);
 }
 
 // Validate the 'port' field (integer between 1 and 65535)
@@ -104,6 +110,10 @@ function validate_port(port) {
 // Validate the 'scheme' field ('http' or 'https')
 function validate_scheme(scheme) {
     return typeof scheme === 'string' && (scheme === 'http' || scheme === 'https');
+}
+
+function validate_route(route) {
+    return typeof route === 'string' && (route === "" || route.startsWith("/"));
 }
 
 // Export the module functions

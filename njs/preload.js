@@ -9,7 +9,7 @@
       "down": true
     },
     {
-      "server": "10.5.0.2",
+      "server": "unix:/var/run/backend.sock",
       "down": true
     }
 ]
