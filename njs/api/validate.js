@@ -96,7 +96,7 @@ function validate_server(server) {
     let domainPattern = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)+[a-zA-Z]{2,}$/; // Simple domain name validation
     let ipv4Pattern = /^((25[0-5]|2[0-4]\d|[01]?\d\d?)(\.|$)){4}$/; // IPv4 address validation
     let ipv6Pattern = /^([a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/; // Simplified IPv6 validation
-    let unixSocketPattern = /^unix:\/[\w\/\-\.]+$/;                   // Unix socket path validation (e.g., unix:/path/to/socket)
+    let unixSocketPattern = /^unix:\/[\w/\-.]+$/;                   // Unix socket path validation (e.g., unix:/path/to/socket)
 
     // Validate the server against the patterns
     return domainPattern.test(server) || ipv4Pattern.test(server) || ipv6Pattern.test(server) || unixSocketPattern.test(server);

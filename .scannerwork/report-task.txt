@@ -1,0 +1,6 @@
+projectKey=nginx-dynamic
+serverUrl=http://172.26.17.22:9000
+serverVersion=10.7.0.96327
+dashboardUrl=http://172.26.17.22:9000/dashboard?id=nginx-dynamic
+ceTaskId=5c61d099-fe8e-4b75-bd1b-2f0f513379df
+ceTaskUrl=http://172.26.17.22:9000/api/ce/task?id=5c61d099-fe8e-4b75-bd1b-2f0f513379df
