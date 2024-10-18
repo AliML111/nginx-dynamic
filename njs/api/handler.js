@@ -1,5 +1,6 @@
 // Import required modules
 let count = ngx.shared.count; // Shared dictionary for counting requests and other counters
+var fs = require('fs');
 
 
 function request_handler(req) {
@@ -11,7 +12,6 @@ function request_handler(req) {
         if (uri.endsWith('/')) {
             uri = uri.slice(0, -1);
         }
-
         // Define the expected route pattern
         // Matches:
         // - /api/v1/{protocol}/upstreams/{upstreamName}(/id)
@@ -29,15 +29,17 @@ function request_handler(req) {
 
             // Log the extracted components for debugging
             ngx.log(ngx.INFO, `Protocol: ${protocol}, Resource Type: ${resourceType}, Resource Name: ${resourceName}, Resource ID: ${resourceId}`);
-
+            
             return {
                 protocol: protocol,
                 resourceType: resourceType,
                 resourceName: resourceName,
                 resourceId: resourceId
             };
+
             
         } else {
+
             // URI doesn't match expected patterns
             ngx.log(ngx.ERR, `Invalid URI format: ${uri}`);
             return;
@@ -57,7 +59,6 @@ function response_handler(req, resCode, resMessage, result, result_info) {
     result = (typeof result !== 'undefined') ? result : null;
     result_info = (typeof result_info !== 'undefined') ? result_info : null;
     let req_id = req.variables.request_id;
-
     // Construct the response object
     let output = {
         success: resCode >= 200 && resCode < 300,
@@ -72,23 +73,8 @@ function response_handler(req, resCode, resMessage, result, result_info) {
     req.headersOut['Content-Type'] = 'application/json';
     req.return(resCode, JSON.stringify(output));
     req.finish();
+
 }
-
-// Function to purge shared dictionaries
-// function purgeSharedDict(req) {
-//     try {
-//         // Clear the shared dictionaries and reinitialize upstreams
-//         upstreamName.clear();
-//         load_upstreams(req);
-//         response_handler(req, 204, 'Purged');
-
-//     } catch (e) {
-//         ngx.log(ngx.ERR, 'Error processing PURGE request: ' + e.message);
-//         response_handler(req, 500, 'There was a problem in purging');
-//     }
-// }
-
-
 
 // Main handler for the API
 function api_handler(req) {
@@ -106,7 +92,6 @@ function api_handler(req) {
     let resourceName = requestInfo.resourceName;
     let protocol = requestInfo.protocol;
 
-
     if (resourceType == "upstreams"){
         resourceName = ngx.shared[resourceName];
     } else if (resourceType == "certs"){
@@ -117,7 +102,8 @@ function api_handler(req) {
     if (protocol == 'http' ) {
             upstreams_handler(req, resourceId, resourceName);
     } else if (protocol == 'stream') {
-        req.return(200);
+        resourceName = ngx.shared["proxy1"];
+        stream_handler(req, resourceId, resourceName);
     } 
     
 }
@@ -128,23 +114,26 @@ function upstreams_handler(req, upstreamId, sharedDict) {
         return; // request_handler already sent a response
     }
 
+    let count = req.variables['counter_name'];
+    count = ngx.shared[count];
+
     let check = count.get(sharedDict);
     // Initialize upstreams if they haven't been loaded yet
     if (check == undefined) {
-        load_upstreams(req, sharedDict);
+        load_http_upstreams(req, sharedDict, count);
         ngx.log(ngx.INFO, "Read from fs");
     }
 
     if (req.method === 'GET') {
         if (upstreamId) {
-            get.list_single_upstream(req, upstreamId, sharedDict);
+            get.list_single_upstream(req, upstreamId, sharedDict, count);
         } else {
-            get.list_multiple_upstreams(req, sharedDict);
+            get.list_multiple_upstreams(req, sharedDict, count);
         }
     } else if (req.method === 'POST' && !upstreamId) {
-        post.add_upstreams(req, sharedDict);
+        post.add_upstreams(req, sharedDict, count);
     } else if (req.method === 'DELETE') {
-        del.delete_upstreams(req, upstreamId, sharedDict);
+        del.delete_upstreams(req, upstreamId, sharedDict, count);
     } else if ((req.method === 'PUT' || req.method === 'PATCH') && upstreamId) {
         put.edit_upstreams(req, upstreamId, sharedDict);
     } else {
@@ -152,8 +141,65 @@ function upstreams_handler(req, upstreamId, sharedDict) {
     }
 }
 
+
+//
+function stream_handler(req, upstreamId, sharedDict) {
+
+    if (!sharedDict){
+        response_handler(req, 404, `Invalid upstream name`);
+        return; // request_handler already sent a response
+    }
+
+    let count = ngx.shared['count1'];
+    let check = count.get(sharedDict);
+
+    // Initialize upstreams if they haven't been loaded yet
+    if (check == undefined) {
+        ngx.fetch('http://unix:/etc/nginx/preload.sock')
+            .then(res => {
+                if (res.status === 200) {
+                    ngx.log(ngx.INFO, 'Response is 200 OK');
+                    // You can process the response further if needed
+                } else {
+                    ngx.log(ngx.ERR, 'Unexpected response status: ' + res.status);
+                    // Handle non-200 responses as needed
+                }
+            });
+        // .catch(e => ngx.log(ngx.ERR, 'Fetch error: ' + e));
+        let fileContent = {};
+        let STORAGE = "/etc/nginx/njs/stream_upstreams1.js";
+
+        try {
+            // Read the file content
+            fileContent = fs.readFileSync(STORAGE, 'utf8');  // 'utf8' to read as a string
+
+        } catch (e) {
+            ngx.log(ngx.ERR, `Error reading file: ${e.message}`);
+            return;
+        }
+        load_stream_upstreams(req, sharedDict, count, fileContent);
+        ngx.log(ngx.INFO, "Read from fs");
+    }
+
+    if (req.method === 'GET') {
+        if (upstreamId) {
+            get.list_single_upstream(req, upstreamId, sharedDict, count);
+        } else {
+            get.list_multiple_upstreams(req, sharedDict, count);
+        }
+    } else if (req.method === 'POST' && !upstreamId) {
+        post.add_upstreams(req, sharedDict, count, 1);
+    } else if (req.method === 'DELETE') {
+        del.delete_upstreams(req, upstreamId, sharedDict, count);
+    } else if ((req.method === 'PUT' || req.method === 'PATCH') && upstreamId) {
+        put.edit_upstreams(req, upstreamId, sharedDict, 1);
+    } else {
+        response_handler(req, 405, 'Method Not Allowed');
+    }
+}
+
 // Function to transform preloaded upstreams into the shared dictionary
-function load_upstreams(req, upstreamName) {
+function load_http_upstreams(req, upstreamName, count) {
     try {
         for (let key in preloadedUpstreams) {
             let id = parseInt(key, 10); // Convert key to a number
@@ -188,6 +234,53 @@ function load_upstreams(req, upstreamName) {
 
         // Mark the ingress as initialized
         count.set(upstreamName, 1);
+
+        // Set next_id to keep counting for number of upstreams used in POST
+        count.set('next_id', (upstreamName.size() - 1));
+    } catch (e) {
+        ngx.log(ngx.ERR, 'Failed to read Upstreams: ' + e.message);
+        response_handler(req, 500, 'Failed to read Upstreams');
+        return;
+    }
+}
+
+// Function to transform preloaded upstreams into the shared dictionary
+function load_stream_upstreams(req, upstreamName, count, fileContent) {
+    try {
+        if (fileContent != undefined){
+            preloadedUpstreams = JSON.parse(fileContent);
+        }
+        for (let key in preloadedUpstreams) {
+            let id = parseInt(key, 10); // Convert key to a number
+            let upstream = preloadedUpstreams[key];
+            if (fileContent != undefined){
+                delete upstream.endpoint;
+            }
+      
+            // Validation of the upstream data
+            let validation = validate.validate_payload(upstream, 1);
+            if (!validation.isValid) {
+                req.error( validation.message);
+                response_handler(req, 400, validation.message);                
+            }
+        
+            // Store the upstream in the shared dictionary
+            upstreamName.set(id, JSON.stringify({
+                'id': upstream.id && upstream.id == undefined ? upstream.id : id,
+                'server':  upstream.server ? upstream.server : upstream.server,
+                'port': upstream.port ? upstream.port : 80,
+                'down': upstream.down ? upstream.down : false,
+                'weight': upstream.weight ? upstream.weight : 1,
+                'endpoint': upstream.server + ':' + (upstream.port ? upstream.port : 80) 
+            }));
+        }
+
+        // Mark the ingress as initialized
+        count.set(upstreamName, 1);
+
+        // Set next_id to keep counting for number of upstreams used in POST
+        count.set('next_id', (upstreamName.size() - 1));
+
     } catch (e) {
         ngx.log(ngx.ERR, 'Failed to read Upstreams: ' + e.message);
         response_handler(req, 500, 'Failed to read Upstreams');
@@ -198,6 +291,7 @@ function load_upstreams(req, upstreamName) {
 // Export the module functions
 export default {
     api_handler: api_handler,
-    load_upstreams,
+    load_upstreams: load_http_upstreams,
     response_handler,
+    load_stream_upstreams
 };

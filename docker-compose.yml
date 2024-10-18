@@ -13,6 +13,8 @@ services:
     #   - "./njs:/etc/angie/njs"
     ports:
      - 80:80
+     - 8080:8080
+     - 8081:8081
     networks:
       custom_net:
         ipv4_address: 10.5.0.5

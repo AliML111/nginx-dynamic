@@ -1,8 +1,6 @@
 // Import required modules
 import querystring from 'querystring'
 
-let count = ngx.shared.count; // Shared dictionary for counting requests and other counters
-
 // Function to parse and validate query parameters with manual defaults
 function parse_query_params(req, defaults) {
     // Provide default values if not supplied
@@ -30,7 +28,7 @@ function parse_query_params(req, defaults) {
 }
 
 // Function to handle request and response for multiple upstreams
-function list_multiple_upstreams(req, upstreamName) {
+function list_multiple_upstreams(req, upstreamName, count) {
     let output = [];
     let items = upstreamName.items(4096);
 
@@ -72,7 +70,7 @@ function list_multiple_upstreams(req, upstreamName) {
 }
 
 // Function to handle request and response for a single upstream
-function list_single_upstream(req, upstreamId, upstreamName) {
+function list_single_upstream(req, upstreamId, upstreamName, count) {
     // Check if the upstream exists
     if (!upstreamName.get(upstreamId)) {
         handler.response_handler(req, 404, 'Upstream not found!');

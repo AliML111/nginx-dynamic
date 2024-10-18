@@ -1,5 +1,5 @@
 // Function to edit upstreams
-function edit_upstreams(req, upstreamId, upstreamName) {
+function edit_upstreams(req, upstreamId, upstreamName, stream) {
     let payloadData = validate.validate_input(req);
         try {
 
@@ -10,9 +10,9 @@ function edit_upstreams(req, upstreamId, upstreamName) {
             }
 
             // Validate the payload data
-            let validation = validate.validate_payload(payloadData);
+            let validation = validate.validate_payload(payloadData , stream);
             if (!validation.isValid) {
-                handler.response_handler(req, 404, validation.message);
+                handler.response_handler(req, 400, validation.message);
                 return;
             }
 
@@ -23,15 +23,21 @@ function edit_upstreams(req, upstreamId, upstreamName) {
             const updatedData = Object.assign({}, existingData, payloadData);
 
             // Update the endpoint based on new data
-            updatedData.endpoint = updatedData.scheme + '://' + updatedData.server + ':' + updatedData.port + updatedData.route;
+            if (stream == 1){
+                updatedData.endpoint = updatedData.server + ':' + updatedData.port;
+            } else {
+                updatedData.endpoint = updatedData.scheme + '://' + updatedData.server + ':' + updatedData.port + updatedData.route;
+            }
 
             let stringified = JSON.stringify(updatedData);
 
             // Save the updated upstream data
             upstreamName.set(upstreamId, stringified);
 
+            disk.writeFile(req, upstreamName);
             // if (upstreamName.get(upstreamName) == stringified){
                 handler.response_handler(req, 200, "Upstream updated successfully", updatedData, null);
+                ngx.fetch('http://unix:/etc/nginx/dummy.sock');
             // } else {
                 // handler.response_handler(req, 500, "Something went wrong", null, null);
             // }

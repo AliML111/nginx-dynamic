@@ -1,14 +1,22 @@
-let count = ngx.shared.count; // Shared dictionary for counting requests and other counters
+
 
 // Function to get the upstream for the request
 function get_upstream(req) {
     let upstreamName = req.variables['upstream_name'];
     upstreamName = ngx.shared[upstreamName];
+    let count = req.variables['counter_name'];
+    count = ngx.shared[count];
 
     // Initialize upstreams for this handler if they haven't been loaded yet
-    if (!count.get(upstreamName)) {
-        handler.load_upstreams(req, upstreamName);
-        ngx.log(ngx.INFO, "Read from fs");
+    if (count.get(upstreamName) == undefined) {
+        let protocol = req.variables['protocol'];
+        if (protocol == "TCP" || protocol == "UDP"){
+            handler.load_stream_upstreams(req, upstreamName, count);
+            disk.writeFile(req, upstreamName);
+        } else {
+            handler.load_upstreams(req, upstreamName, count);
+        }
+        ngx.log(ngx.ERR, "Read from fs");
     }
 
     // Get the list of upstreams from the shared dictionary

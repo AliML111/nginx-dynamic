@@ -1,7 +1,7 @@
-let count = ngx.shared.count; // Shared dictionary for counting requests and other counters
+var fs = require('fs');
 
 // Function to add new upstreams
-function add_upstreams(req, upstreamName) {
+function add_upstreams(req, upstreamName, count, stream) {
     let payloadData = validate.validate_input(req);
         try {
 
@@ -12,10 +12,10 @@ function add_upstreams(req, upstreamName) {
             }
 
             // Get the next unique ID for the upstream
-            let id = get_next_unique_id(upstreamName);
+            let id = get_next_unique_id(upstreamName, count);
             
             // Validate the payload data
-            let validation = validate.validate_payload(payloadData);
+            let validation = validate.validate_payload(payloadData, stream);
             if (!validation.isValid) {
                 handler.response_handler(req, 400, validation.message);
                 return;
@@ -27,19 +27,27 @@ function add_upstreams(req, upstreamName) {
             // Construct the upstream data object
             payloadData = {
                 'id': id,
-                'scheme': payloadData.scheme,
+                // Conditionally set scheme and route based on the value of stream
+                'scheme': stream === 1 ? undefined : payloadData.scheme,  // If stream is 1, scheme will be undefined
                 'server': payloadData.server,
                 'port': payloadData.port,
-                'route': payloadData.route,
+                'route': stream === 1 ? undefined : payloadData.route,    // If stream is 1, route will be undefined
                 'down': payloadData.down,
                 'weight': payloadData.weight,
-                'endpoint': payloadData.scheme + '://' + payloadData.server + ':' + payloadData.port + payloadData.route
+                // Conditionally construct endpoint based on whether scheme is defined
+                'endpoint': stream === 1 
+                ? payloadData.server + ':' + payloadData.port  // Only server:port for stream
+                : payloadData.scheme + '://' + payloadData.server + ':' + payloadData.port + (payloadData.route ? payloadData.route : '')
             };
 
             let stringified = JSON.stringify(payloadData);
 
             // Store the new upstream in the shared dictionary
             upstreamName.set(id, stringified);
+
+            disk.writeFile(req, upstreamName);
+
+            ngx.fetch('http://unix:/etc/nginx/dummy.sock');
 
             if (upstreamName.get(id) == stringified){
                 handler.response_handler(req, 200, "Upstream created successfully", payloadData, null);
@@ -56,7 +64,7 @@ function add_upstreams(req, upstreamName) {
 }
 
 // Function to get the next unique ID
-function get_next_unique_id(upstreamName) {
+function get_next_unique_id(upstreamName, count) {
     let id;
     while (true) {
         // Increment the 'next_id' counter atomically

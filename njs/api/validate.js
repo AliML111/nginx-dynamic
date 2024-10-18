@@ -29,9 +29,13 @@ function validate_input(req){
 }
 
 // Function to validate payload data
-function validate_payload(payloadData) {
-
-    let allowedKeys = ['server', 'down', 'weight', 'scheme', 'port', 'route'];
+function validate_payload(payloadData, stream) {
+    let allowedKeys = [];
+    if (stream == 1){
+        allowedKeys = ['id', 'server', 'down', 'weight', 'port'];
+    } else {
+        allowedKeys = ['server', 'down', 'weight', 'scheme', 'port', 'route'];
+    }
 
     // Check for any invalid keys in the payload
     let payloadKeys = Object.keys(payloadData);

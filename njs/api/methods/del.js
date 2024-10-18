@@ -1,7 +1,6 @@
-let count = ngx.shared.count; // Shared dictionary for counting requests and other counters
 
 // Function to delete upstreams
-function delete_upstreams(req, upstreamId, upstreamName) {    
+function delete_upstreams(req, upstreamId, upstreamName, count) {    
     try {
         // Reset the statics like request counter
 
@@ -23,6 +22,9 @@ function delete_upstreams(req, upstreamId, upstreamName) {
 
         handler.response_handler(req, 204);
 
+        disk.writeFile(req, upstreamName);
+
+        ngx.fetch('http://unix:/etc/nginx/dummy.sock');
 
     } catch (e) {
         ngx.log(ngx.ERR, 'Error processing DELETE request: ' + e.message);
