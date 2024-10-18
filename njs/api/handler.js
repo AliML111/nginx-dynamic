@@ -188,6 +188,9 @@ function load_upstreams(req, upstreamName) {
 
         // Mark the ingress as initialized
         count.set(upstreamName, 1);
+
+        // Set next_id to keep counting for number of upstreams used in POST
+        count.set('next_id', (upstreamName.size() - 1));
     } catch (e) {
         ngx.log(ngx.ERR, 'Failed to read Upstreams: ' + e.message);
         response_handler(req, 500, 'Failed to read Upstreams');
