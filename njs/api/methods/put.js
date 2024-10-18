@@ -12,7 +12,7 @@ function edit_upstreams(req, upstreamId, upstreamName) {
             // Validate the payload data
             let validation = validate.validate_payload(payloadData);
             if (!validation.isValid) {
-                handler.response_handler(req, 404, validation.message);
+                handler.response_handler(req, 400, validation.message);
                 return;
             }
 
