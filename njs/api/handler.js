@@ -74,22 +74,6 @@ function response_handler(req, resCode, resMessage, result, result_info) {
     req.finish();
 }
 
-// Function to purge shared dictionaries
-// function purgeSharedDict(req) {
-//     try {
-//         // Clear the shared dictionaries and reinitialize upstreams
-//         upstreamName.clear();
-//         load_upstreams(req);
-//         response_handler(req, 204, 'Purged');
-
-//     } catch (e) {
-//         ngx.log(ngx.ERR, 'Error processing PURGE request: ' + e.message);
-//         response_handler(req, 500, 'There was a problem in purging');
-//     }
-// }
-
-
-
 // Main handler for the API
 function api_handler(req) {
 
@@ -122,6 +106,7 @@ function api_handler(req) {
     
 }
 
+// Function to handle upstreams
 function upstreams_handler(req, upstreamId, sharedDict) {
     if (!sharedDict){
         response_handler(req, 404, `Invalid upstream name`);
@@ -190,7 +175,7 @@ function load_upstreams(req, upstreamName) {
         count.set(upstreamName, 1);
 
         // Set next_id to keep counting for number of upstreams used in POST
-        count.set('next_id', (upstreamName.size() - 1));
+        count.set('next_id', (upstreamName.size() - 2));
     } catch (e) {
         ngx.log(ngx.ERR, 'Failed to read Upstreams: ' + e.message);
         response_handler(req, 500, 'Failed to read Upstreams');
